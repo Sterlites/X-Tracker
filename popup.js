@@ -9,23 +9,94 @@ let currentView = 'dashboard';
 document.addEventListener('DOMContentLoaded', () => {
   loadStats();
   setupEventListeners();
-  // Load saved username
-  chrome.storage.local.get(['username'], (res) => {
-    if (res.username) {
-      const el = document.getElementById('usernameInput');
-      if (el) el.value = res.username;
+  
+  // Load saved username and scan settings
+  chrome.storage.local.get(['username', 'autoScan', 'scanInterval'], (res) => {
+    const username = res.username || 'rohit_dwivedi';
+    const el = document.getElementById('usernameInput');
+    if (el) el.value = username;
+    
+    // Setup auto-scan toggle
+    const toggle = document.getElementById('autoScanToggle');
+    const check = document.getElementById('autoScanCheck');
+    if (toggle && check) {
+      check.checked = res.autoScan || false;
+      toggle.classList.toggle('active', check.checked);
+    }
+    
+    // Set scan interval
+    const interval = document.getElementById('scanInterval');
+    if (interval) {
+      interval.value = res.scanInterval || '3600';
+    }
+    
+    // Start auto-scan if enabled
+    if (res.autoScan) {
+      scheduleNextScan();
     }
   });
 });
+
+// Schedule next auto-scan
+function scheduleNextScan() {
+  const interval = document.getElementById('scanInterval')?.value || '3600';
+  const nextScan = Date.now() + (parseInt(interval) * 1000);
+  
+  chrome.storage.local.set({ nextScanTime: nextScan });
+  
+  // Check every minute if it's time to scan
+  setTimeout(checkAutoScan, 60000);
+}
+
+// Check if it's time for auto-scan
+function checkAutoScan() {
+  chrome.storage.local.get(['autoScan', 'nextScanTime'], (res) => {
+    if (res.autoScan && res.nextScanTime && Date.now() >= res.nextScanTime) {
+      startScan();
+    } else if (res.autoScan) {
+      // Check again in a minute
+      setTimeout(checkAutoScan, 60000);
+    }
+  });
+}
 
 function setupEventListeners() {
   // Scan button
   const scanBtn = document.getElementById('scanBtn');
   if (scanBtn) scanBtn.addEventListener('click', startScan);
+  
+  // Username input
   const usernameInput = document.getElementById('usernameInput');
   if (usernameInput) {
+    usernameInput.value = usernameInput.value || 'rohit_dwivedi';
     usernameInput.addEventListener('change', (e) => {
       chrome.storage.local.set({ username: e.target.value });
+    });
+  }
+  
+  // Auto-scan toggle
+  const toggle = document.getElementById('autoScanToggle');
+  const check = document.getElementById('autoScanCheck');
+  if (toggle && check) {
+    toggle.addEventListener('click', () => {
+      check.checked = !check.checked;
+      toggle.classList.toggle('active', check.checked);
+      chrome.storage.local.set({ autoScan: check.checked });
+      
+      if (check.checked) {
+        scheduleNextScan();
+      }
+    });
+  }
+  
+  // Scan interval
+  const interval = document.getElementById('scanInterval');
+  if (interval) {
+    interval.addEventListener('change', (e) => {
+      chrome.storage.local.set({ scanInterval: e.target.value });
+      if (check.checked) {
+        scheduleNextScan();
+      }
     });
   }
   
@@ -35,6 +106,42 @@ function setupEventListeners() {
       switchView(e.target.dataset.view);
     });
   });
+
+  // Delegate clicks inside the content area for profile actions
+  const content = document.querySelector('.content');
+  if (content) {
+    content.addEventListener('click', async (e) => {
+      const tgt = e.target;
+      const username = tgt.dataset?.username;
+      if (!username) return;
+
+      e.preventDefault();
+
+      // Open in background tab
+      if (tgt.classList.contains('open-bg')) {
+        chrome.tabs.create({ url: `https://x.com/${username}`, active: false });
+        return;
+      }
+
+      // Try to use current tab if it's on x.com
+      if (tgt.classList.contains('profile-link')) {
+        try {
+          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+          if (tab?.url?.includes('x.com') || tab?.url?.includes('twitter.com')) {
+            // Update URL in current tab
+            chrome.tabs.update(tab.id, { url: `https://x.com/${username}` });
+          } else {
+            // Create new tab if not on X
+            chrome.tabs.create({ url: `https://x.com/${username}`, active: true });
+          }
+        } catch (e) {
+          // Fallback to new tab if query fails
+          chrome.tabs.create({ url: `https://x.com/${username}`, active: true });
+        }
+        return;
+      }
+    });
+  }
 }
 
 function switchView(view) {
@@ -59,25 +166,44 @@ function startScan() {
   const btn = document.getElementById('scanBtn');
   if (!btn) return;
 
-  const username = (document.getElementById('usernameInput') && document.getElementById('usernameInput').value) || '';
+  const username = (document.getElementById('usernameInput') && document.getElementById('usernameInput').value) || 'rohit_dwivedi';
   if (!username) {
     alert('Please enter your X username (without @) before scanning.');
     return;
   }
 
+  // Update UI for scanning state
   btn.disabled = true;
   btn.innerHTML = '<span>⏳</span><span>Scanning...</span>';
+  
+  const statusDot = document.getElementById('scanStatusDot');
+  const statusText = document.getElementById('scanStatusText');
+  if (statusDot && statusText) {
+    statusDot.classList.add('scanning');
+    statusText.textContent = 'Scanning...';
+  }
 
-  // Save username
-  chrome.storage.local.set({ username });
+  // Save username and last scan attempt time
+  chrome.storage.local.set({ 
+    username,
+    lastScanAttempt: Date.now()
+  });
 
-  // Send message to background script to start scan and include username
+  // Send message to background script to start scan
   chrome.runtime.sendMessage({ action: 'startScan', username }, (response) => {
     if (response?.status === 'scanning') {
       // Scan started successfully - keep button disabled until scanComplete message
+      if (document.getElementById('autoScanCheck')?.checked) {
+        scheduleNextScan();
+      }
     } else {
+      // Reset UI on error
       btn.disabled = false;
       btn.innerHTML = '<span>🔄</span><span>Scan Now</span>';
+      if (statusDot && statusText) {
+        statusDot.classList.remove('scanning');
+        statusText.textContent = 'Error';
+      }
       alert('Error starting scan. Make sure you are logged into X and the username is correct.');
     }
   });
@@ -131,11 +257,13 @@ function renderRecentActivity(unfollowers, newFollowers) {
   let html = '<h3 style="font-size: 13px; margin-bottom: 12px; color: rgba(255,255,255,0.7);">Recent Activity</h3>';
   html += '<div class="user-list">';
   
-  // Show up to 3 recent changes
+  // Show up to 3 recent changes (by username)
   const recent = [...unfollowers.slice(0, 2), ...newFollowers.slice(0, 1)];
-  
+  const unfollowUsernames = new Set(unfollowers.map(u => u.username));
+  const newUserUsernames = new Set(newFollowers.map(u => u.username));
+
   recent.forEach(user => {
-    const isUnfollow = unfollowers.includes(user);
+    const isUnfollow = unfollowUsernames.has(user.username);
     const bgColor = isUnfollow ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)';
     const avatarColor = isUnfollow ? 'linear-gradient(135deg, #ef4444, #dc2626)' : 'linear-gradient(135deg, #10b981, #059669)';
     const status = isUnfollow ? 'Unfollowed' : 'New Follower';
@@ -149,7 +277,11 @@ function renderRecentActivity(unfollowers, newFollowers) {
           </div>
           <div class="user-details">
             <div class="user-name">${user.name}</div>
-            <div class="user-username">@${user.username}</div>
+            <div class="user-username">
+              <a href="#" class="profile-link" data-username="${user.username}">@${user.username}</a>
+              <button class="open-fg" data-username="${user.username}" style="margin-left:8px;padding:4px;border-radius:4px;font-size:11px;">Open</button>
+              <button class="open-bg" data-username="${user.username}" style="margin-left:4px;padding:4px;border-radius:4px;font-size:11px;">BG</button>
+            </div>
           </div>
         </div>
         <div class="user-time">
@@ -190,7 +322,11 @@ function renderUnfollowersList(unfollowers) {
           </div>
           <div class="user-details">
             <div class="user-name">${user.name}</div>
-            <div class="user-username">@${user.username}</div>
+            <div class="user-username">
+              <a href="#" class="profile-link" data-username="${user.username}">@${user.username}</a>
+              <button class="open-fg" data-username="${user.username}" style="margin-left:8px;padding:4px;border-radius:4px;font-size:11px;">Open</button>
+              <button class="open-bg" data-username="${user.username}" style="margin-left:4px;padding:4px;border-radius:4px;font-size:11px;">BG</button>
+            </div>
           </div>
         </div>
         <div class="user-time">
@@ -230,7 +366,11 @@ function renderNewFollowersList(newFollowers) {
           </div>
           <div class="user-details">
             <div class="user-name">${user.name}</div>
-            <div class="user-username">@${user.username}</div>
+            <div class="user-username">
+              <a href="#" class="profile-link" data-username="${user.username}">@${user.username}</a>
+              <button class="open-fg" data-username="${user.username}" style="margin-left:8px;padding:4px;border-radius:4px;font-size:11px;">Open</button>
+              <button class="open-bg" data-username="${user.username}" style="margin-left:4px;padding:4px;border-radius:4px;font-size:11px;">BG</button>
+            </div>
           </div>
         </div>
         <div class="user-time">
@@ -260,19 +400,49 @@ function formatTimeAgo(timestamp) {
   return 'Just now';
 }
 
-// Listen for scan completion
+// Listen for scan completion and errors
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'scanComplete') {
     loadStats();
+    
+    // Reset scan button
     const btn = document.getElementById('scanBtn');
-    btn.disabled = false;
-    btn.innerHTML = '<span>🔄</span><span>Scan Now</span>';
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<span>🔄</span><span>Scan Now</span>';
+    }
+    
+    // Update status indicators
+    const statusDot = document.getElementById('scanStatusDot');
+    const statusText = document.getElementById('scanStatusText');
+    if (statusDot && statusText) {
+      statusDot.classList.remove('scanning');
+      statusText.textContent = 'Ready';
+    }
+    
+    // Schedule next scan if auto-scan is enabled
+    if (document.getElementById('autoScanCheck')?.checked) {
+      scheduleNextScan();
+    }
   }
   
   if (request.action === 'scanError') {
+    // Show error
     alert('Scan error: ' + request.error);
+    
+    // Reset UI
     const btn = document.getElementById('scanBtn');
-    btn.disabled = false;
-    btn.innerHTML = '<span>🔄</span><span>Scan Now</span>';
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<span>🔄</span><span>Scan Now</span>';
+    }
+    
+    // Update status
+    const statusDot = document.getElementById('scanStatusDot');
+    const statusText = document.getElementById('scanStatusText');
+    if (statusDot && statusText) {
+      statusDot.classList.remove('scanning');
+      statusText.textContent = 'Error';
+    }
   }
 });

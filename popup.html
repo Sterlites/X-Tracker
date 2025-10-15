@@ -21,7 +21,7 @@
     }
     
     .header {
-      background: linear-gradient(90deg, #2563eb 0%, #3b82f6 100%);
+      background: linear-gradient(90deg, #1a1a2e 0%, #16213e 100%);
       padding: 16px;
       box-shadow: 0 4px 6px rgba(0,0,0,0.2);
     }
@@ -30,7 +30,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 8px;
+      margin-bottom: 12px;
     }
     
     .title {
@@ -42,7 +42,7 @@
     }
     
     .scan-btn {
-      background: rgba(255,255,255,0.2);
+      background: #3b82f6;
       border: none;
       padding: 8px 12px;
       border-radius: 8px;
@@ -52,16 +52,128 @@
       display: flex;
       align-items: center;
       gap: 6px;
-      transition: background 0.2s;
+      transition: all 0.2s;
+      font-weight: 500;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
     
     .scan-btn:hover {
-      background: rgba(255,255,255,0.3);
+      background: #2563eb;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 6px rgba(0,0,0,0.2);
     }
     
     .scan-btn:disabled {
       opacity: 0.5;
       cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+    
+    .header-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      justify-content: space-between;
+    }
+    
+    .username-input {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      padding: 8px 12px;
+      border-radius: 8px;
+      color: white;
+      width: 160px;
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+    
+    .username-input:focus {
+      outline: none;
+      border-color: #3b82f6;
+      background: rgba(255,255,255,0.15);
+    }
+    
+    .username-input::placeholder {
+      color: rgba(255,255,255,0.5);
+    }
+    
+    .auto-scan-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.8);
+    }
+    
+    .toggle-switch {
+      width: 36px;
+      height: 20px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 10px;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    
+    .toggle-switch.active {
+      background: #3b82f6;
+    }
+    
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      background: white;
+      border-radius: 50%;
+      top: 2px;
+      left: 2px;
+      transition: transform 0.2s;
+    }
+    
+    .toggle-switch.active::after {
+      transform: translateX(16px);
+    }
+    
+    .scan-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.7);
+    }
+    
+    .scan-status {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      color: rgba(255,255,255,0.6);
+    }
+    
+    .scan-status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #10b981;
+    }
+    
+    .scan-status-dot.scanning {
+      background: #3b82f6;
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.4; }
+      100% { opacity: 1; }
     }
     
     .last-check {
@@ -213,15 +325,40 @@
         <span>👥</span>
         <span>X Unfollow Tracker</span>
       </div>
-        <div style="display:flex; gap:8px; align-items:center;">
-          <input id="usernameInput" placeholder="your_username" style="padding:6px 8px; border-radius:6px; border: none; width:140px;" />
-          <button id="scanBtn" class="scan-btn">
-            <span>\ud83d\udd04</span>
-            <span>Scan Now</span>
-          </button>
+    </div>
+
+    <div class="header-controls">
+      <div class="control-row">
+        <input id="usernameInput" class="username-input" placeholder="rohit_dwivedi" />
+        <button id="scanBtn" class="scan-btn">
+          <span>🔄</span>
+          <span>Scan Now</span>
+        </button>
+      </div>
+
+      <div class="control-row">
+        <div class="auto-scan-toggle">
+          <label class="toggle-switch" id="autoScanToggle">
+            <input type="checkbox" id="autoScanCheck" hidden />
+          </label>
+          <span>Auto-scan every</span>
+          <select id="scanInterval" style="background: transparent; color: white; border: none;">
+            <option value="3600">1 hour</option>
+            <option value="7200">2 hours</option>
+            <option value="14400">4 hours</option>
+            <option value="28800">8 hours</option>
+          </select>
         </div>
-      
-    <div id="lastCheck" class="last-check"></div>
+
+        <div class="scan-info">
+          <div class="scan-status">
+            <span class="scan-status-dot" id="scanStatusDot"></span>
+            <span id="scanStatusText">Ready</span>
+          </div>
+          <span id="lastCheck" class="last-check">Never scanned</span>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="tabs">

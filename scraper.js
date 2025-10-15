@@ -24,8 +24,17 @@
         if (!usernameLink) return;
         const href = usernameLink.getAttribute('href');
         const parts = href.split('/').filter(Boolean);
-        const username = parts[0] || parts[1] || '';
+        const username = (parts[0] || parts[1] || '').replace(/^@/, '');
         if (!username) return;
+
+        // Basic validation: username should be 2-30 chars and only contain letters, numbers, underscores
+        if (!/^[A-Za-z0-9_]{2,30}$/.test(username)) return;
+
+        // Heuristic: ensure this link is inside a user cell and not a navigation or media link
+        const parentRole = usernameLink.getAttribute('role') || usernameLink.closest('[role]')?.getAttribute('role');
+        if (parentRole && ['link', 'button', 'article', 'listitem', 'presentation'].indexOf(parentRole) === -1) {
+          // Not a standard role we expect for user links — still continue but be conservative
+        }
 
         // Extract display name
         const nameElement = cell.querySelector('[dir="ltr"] span');
