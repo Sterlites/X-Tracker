@@ -1,29 +1,32 @@
 // ============================================
-// FILE: background.js
+// FILE: background.js (IMPROVED VERSION)
 // ============================================
 // Background service worker for the extension
 
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('X Unfollow Tracker installed');
+  console.log('[X Unfollow Tracker] Extension installed');
   
   // Initialize storage
-  chrome.storage.local.get(['followers', 'lastCheck'], (result) => {
+  chrome.storage.local.get(['followers'], (result) => {
     if (!result.followers) {
       chrome.storage.local.set({
         followers: [],
         unfollowers: [],
         newFollowers: [],
         lastCheck: null,
-        scanHistory: []
+        scanHistory: [],
+        scanStatus: 'idle'
       });
+      console.log('[X Unfollow Tracker] Storage initialized');
     }
   });
 });
 
 // Listen for messages from popup or content script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  console.log('[X Unfollow Tracker] Message received:', request.action);
+
   if (request.action === 'startScan') {
-    // Accept username from popup or use stored username
     const username = request.username;
     startFollowerScan(sendResponse, username);
     return true; // Indicates async response
@@ -34,72 +37,154 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
-  // Messages from content script
   if (request.action === 'scanComplete') {
-    // Update scanHistory
+    console.log('[X Unfollow Tracker] Scan completed successfully');
+    
     chrome.storage.local.get(['scanHistory'], (res) => {
       const history = res.scanHistory || [];
-      history.unshift({ timestamp: Date.now(), stats: request.stats || {} });
+      history.unshift({ 
+        timestamp: Date.now(), 
+        stats: request.stats || {} 
+      });
       if (history.length > 50) history.length = 50;
-      chrome.storage.local.set({ scanHistory: history });
+      
+      chrome.storage.local.set({ 
+        scanHistory: history,
+        scanStatus: 'complete',
+        lastScanTime: Date.now()
+      });
     });
-
-    // Close the scan tab if provided
-    if (request.tabId) {
-      try { chrome.tabs.remove(request.tabId); } catch (e) {}
-    }
 
     return;
   }
 
   if (request.action === 'scanError') {
-    console.error('Scan error reported:', request.error);
-    chrome.storage.local.set({ lastError: request.error });
+    console.error('[X Unfollow Tracker] Scan error:', request.error);
+    chrome.storage.local.set({ 
+      lastError: request.error,
+      scanStatus: 'error'
+    });
     return;
   }
 });
 
 async function startFollowerScan(sendResponse, providedUsername) {
+  console.log('[X Unfollow Tracker] Starting scan for username:', providedUsername);
+
   try {
-    // Resolve username: provided or stored
+    // Validate username
     let username = providedUsername;
     if (!username) {
-      const stored = await new Promise(resolve => chrome.storage.local.get(['username'], resolve));
+      const stored = await new Promise(resolve => 
+        chrome.storage.local.get(['username'], resolve)
+      );
       username = stored.username;
     }
 
     if (!username) {
-      sendResponse({ status: 'error', message: 'No username provided or stored' });
+      console.error('[X Unfollow Tracker] No username provided');
+      sendResponse({ 
+        status: 'error', 
+        message: 'No username provided. Please enter your X username.' 
+      });
       return;
     }
 
+    // Remove @ symbol if present
+    username = username.replace('@', '');
+
+    // Build followers URL
     const followersUrl = `https://x.com/${encodeURIComponent(username)}/followers`;
+    console.log('[X Unfollow Tracker] Target URL:', followersUrl);
+    
+    // Get or create tab
+    const [currentTab] = await chrome.tabs.query({ 
+      active: true, 
+      currentWindow: true 
+    });
 
-    // Create a new tab to scan followers (inactive)
-    const scanTab = await chrome.tabs.create({ url: followersUrl, active: false });
-    const scanTabId = scanTab.id;
+    if (!currentTab?.id) {
+      console.error('[X Unfollow Tracker] No active tab found');
+      sendResponse({ 
+        status: 'error', 
+        message: 'No active tab found. Please try again.' 
+      });
+      return;
+    }
 
-    // Wait for page to load, then inject content script
-    chrome.tabs.onUpdated.addListener(function listener(tabId, info) {
-      if (tabId === scanTabId && info.status === 'complete') {
-        chrome.tabs.onUpdated.removeListener(listener);
+    const scanTabId = currentTab.id;
 
-        // Store current scan context for the content script to use if needed
-        chrome.storage.local.set({ _currentScanTabId: scanTabId, _currentScanUsername: username }, () => {
-          // Inject the scraper
+    // Set scanning status
+    await new Promise(resolve => {
+      chrome.storage.local.set({ 
+        scanStatus: 'scanning',
+        _currentScanTabId: scanTabId,
+        _currentScanUsername: username 
+      }, resolve);
+    });
+
+    // Navigate to followers page
+    console.log('[X Unfollow Tracker] Navigating to followers page...');
+    await chrome.tabs.update(scanTabId, { url: followersUrl });
+
+    // Wait for page to fully load, then inject scraper
+    let listenerAttached = false;
+    
+    const listener = (tabId, info, tab) => {
+      if (tabId !== scanTabId) return;
+      
+      console.log('[X Unfollow Tracker] Tab status:', info.status, 'URL:', tab.url);
+
+      // Check if we're on the right page and it's fully loaded
+      if (info.status === 'complete' && tab.url && tab.url.includes('/followers')) {
+        if (listenerAttached) {
+          chrome.tabs.onUpdated.removeListener(listener);
+          listenerAttached = false;
+        }
+
+        console.log('[X Unfollow Tracker] Page loaded, injecting scraper...');
+
+        // Small delay to ensure page is fully rendered
+        setTimeout(() => {
           chrome.scripting.executeScript({
             target: { tabId: scanTabId },
             files: ['scraper.js']
           }).then(() => {
-            sendResponse({ status: 'scanning', tabId: scanTabId });
+            console.log('[X Unfollow Tracker] Scraper injected successfully');
+            sendResponse({ 
+              status: 'scanning', 
+              tabId: scanTabId 
+            });
           }).catch(err => {
-            sendResponse({ status: 'error', message: err.message });
+            console.error('[X Unfollow Tracker] Script injection failed:', err);
+            chrome.storage.local.set({ scanStatus: 'error' });
+            sendResponse({ 
+              status: 'error', 
+              message: `Failed to inject scraper: ${err.message}` 
+            });
           });
-        });
+        }, 1500);
       }
-    });
+    };
+
+    chrome.tabs.onUpdated.addListener(listener);
+    listenerAttached = true;
+
+    // Safety timeout - remove listener after 30 seconds
+    setTimeout(() => {
+      if (listenerAttached) {
+        chrome.tabs.onUpdated.removeListener(listener);
+        console.warn('[X Unfollow Tracker] Listener timeout - page may not have loaded');
+      }
+    }, 30000);
+
   } catch (error) {
-    sendResponse({ status: 'error', message: error.message });
+    console.error('[X Unfollow Tracker] Error starting scan:', error);
+    chrome.storage.local.set({ scanStatus: 'error' });
+    sendResponse({ 
+      status: 'error', 
+      message: error.message || 'Failed to start scan' 
+    });
   }
 }
 
@@ -120,3 +205,9 @@ async function getStoredStats(sendResponse) {
     });
   });
 }
+
+// Cleanup on extension unload
+chrome.runtime.onSuspend.addListener(() => {
+  console.log('[X Unfollow Tracker] Extension suspending, cleaning up...');
+  chrome.storage.local.set({ scanStatus: 'idle' });
+});

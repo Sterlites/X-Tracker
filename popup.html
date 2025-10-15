@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html>
 <head>
@@ -13,8 +12,8 @@
     }
     
     body {
-      width: 384px;
-      min-height: 500px;
+      width: 420px;
+      min-height: 550px;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
       color: white;
@@ -41,23 +40,119 @@
       font-weight: bold;
     }
     
+    .user-selector {
+      position: relative;
+      margin-bottom: 12px;
+    }
+    
+    .user-dropdown {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      padding: 10px 12px;
+      border-radius: 8px;
+      color: white;
+      width: 100%;
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: all 0.2s;
+    }
+    
+    .user-dropdown:hover {
+      background: rgba(255,255,255,0.15);
+      border-color: #3b82f6;
+    }
+    
+    .user-dropdown-arrow {
+      transition: transform 0.2s;
+    }
+    
+    .user-dropdown.open .user-dropdown-arrow {
+      transform: rotate(180deg);
+    }
+    
+    .user-menu {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: #16213e;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 8px;
+      margin-top: 4px;
+      max-height: 200px;
+      overflow-y: auto;
+      z-index: 100;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+      display: none;
+    }
+    
+    .user-menu.open {
+      display: block;
+    }
+    
+    .user-menu-item {
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .user-menu-item:hover {
+      background: rgba(59, 130, 246, 0.2);
+    }
+    
+    .user-menu-item.active {
+      background: rgba(59, 130, 246, 0.3);
+      font-weight: 500;
+    }
+    
+    .user-menu-item .user-stats {
+      font-size: 11px;
+      color: rgba(255,255,255,0.6);
+    }
+    
+    .add-user-btn {
+      background: rgba(16, 185, 129, 0.2);
+      border: 1px dashed rgba(16, 185, 129, 0.5);
+      padding: 8px 12px;
+      border-radius: 6px;
+      color: #10b981;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      text-align: center;
+      transition: all 0.2s;
+    }
+    
+    .add-user-btn:hover {
+      background: rgba(16, 185, 129, 0.3);
+      border-color: #10b981;
+    }
+    
     .scan-btn {
       background: #3b82f6;
       border: none;
-      padding: 8px 12px;
+      padding: 10px 16px;
       border-radius: 8px;
       color: white;
       cursor: pointer;
-      font-size: 13px;
+      font-size: 14px;
       display: flex;
       align-items: center;
       gap: 6px;
       transition: all 0.2s;
       font-weight: 500;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      width: 100%;
+      justify-content: center;
     }
     
-    .scan-btn:hover {
+    .scan-btn:hover:not(:disabled) {
       background: #2563eb;
       transform: translateY(-1px);
       box-shadow: 0 4px 6px rgba(0,0,0,0.2);
@@ -83,33 +178,30 @@
       justify-content: space-between;
     }
     
-    .username-input {
-      background: rgba(255,255,255,0.1);
-      border: 1px solid rgba(255,255,255,0.2);
-      padding: 8px 12px;
-      border-radius: 8px;
-      color: white;
-      width: 160px;
-      font-size: 13px;
-      transition: all 0.2s;
-    }
-    
-    .username-input:focus {
-      outline: none;
-      border-color: #3b82f6;
-      background: rgba(255,255,255,0.15);
-    }
-    
-    .username-input::placeholder {
-      color: rgba(255,255,255,0.5);
-    }
-    
     .auto-scan-toggle {
       display: flex;
       align-items: center;
       gap: 8px;
       font-size: 12px;
       color: rgba(255,255,255,0.8);
+    }
+    
+    .scan-frequency {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      padding: 4px 8px;
+      border-radius: 6px;
+      color: white;
+      font-size: 12px;
+    }
+    
+    .scan-frequency:focus {
+      outline: none;
+      border-color: #3b82f6;
+    }
+    
+    .scan-frequency option {
+      background: #16213e;
     }
     
     .toggle-switch {
@@ -171,9 +263,15 @@
     }
     
     @keyframes pulse {
-      0% { opacity: 1; }
-      50% { opacity: 0.4; }
-      100% { opacity: 1; }
+      0% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.2); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+    .next-scan {
+      font-size: 10px;
+      color: rgba(255,255,255,0.5);
+      margin-top: 4px;
     }
     
     .last-check {
@@ -210,6 +308,19 @@
       overflow-y: auto;
     }
     
+    .content::-webkit-scrollbar {
+      width: 6px;
+    }
+    
+    .content::-webkit-scrollbar-track {
+      background: rgba(255,255,255,0.05);
+    }
+    
+    .content::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.2);
+      border-radius: 3px;
+    }
+    
     .stats-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -222,6 +333,12 @@
       border: 1px solid rgba(255,255,255,0.1);
       border-radius: 8px;
       padding: 16px;
+      transition: all 0.2s;
+    }
+    
+    .stat-card:hover {
+      background: rgba(255,255,255,0.08);
+      transform: translateY(-2px);
     }
     
     .stat-label {
@@ -252,12 +369,19 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      transition: all 0.2s;
+    }
+    
+    .user-card:hover {
+      background: rgba(255,255,255,0.08);
+      transform: translateX(2px);
     }
     
     .user-info {
       display: flex;
       align-items: center;
       gap: 12px;
+      flex: 1;
     }
     
     .user-avatar {
@@ -269,24 +393,62 @@
       justify-content: center;
       font-weight: bold;
       font-size: 16px;
+      flex-shrink: 0;
     }
     
     .user-details {
       font-size: 13px;
+      flex: 1;
+      min-width: 0;
     }
     
     .user-name {
       font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     
     .user-username {
       color: rgba(255,255,255,0.5);
       font-size: 12px;
+      margin-top: 2px;
+    }
+
+    .user-username a {
+      color: rgba(59, 130, 246, 0.8);
+      text-decoration: none;
+    }
+
+    .user-username a:hover {
+      color: #60a5fa;
+      text-decoration: underline;
+    }
+
+    .user-actions {
+      display: flex;
+      gap: 4px;
+    }
+
+    .user-action-btn {
+      padding: 4px 8px;
+      border: none;
+      background: rgba(255,255,255,0.1);
+      color: white;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .user-action-btn:hover {
+      background: rgba(59, 130, 246, 0.3);
     }
     
     .user-time {
       text-align: right;
       font-size: 11px;
+      flex-shrink: 0;
     }
     
     .user-status {
@@ -307,6 +469,27 @@
       line-height: 1.5;
       margin-top: 16px;
     }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: rgba(255,255,255,0.5);
+    }
+
+    .empty-state-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+
+    .empty-state-title {
+      font-size: 14px;
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+
+    .empty-state-text {
+      font-size: 12px;
+    }
     
     .footer {
       border-top: 1px solid rgba(255,255,255,0.1);
@@ -315,6 +498,39 @@
       font-size: 11px;
       color: rgba(255,255,255,0.4);
       background: rgba(0,0,0,0.2);
+    }
+
+    .section-title {
+      font-size: 13px;
+      margin: 16px 0 12px 0;
+      color: rgba(255,255,255,0.7);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .badge {
+      background: rgba(59, 130, 246, 0.2);
+      color: #60a5fa;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .progress-bar {
+      height: 4px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #3b82f6, #60a5fa);
+      width: 0%;
+      transition: width 0.3s;
     }
   </style>
 </head>
@@ -328,25 +544,33 @@
     </div>
 
     <div class="header-controls">
-      <div class="control-row">
-        <input id="usernameInput" class="username-input" placeholder="rohit_dwivedi" />
-        <button id="scanBtn" class="scan-btn">
-          <span>🔄</span>
-          <span>Scan Now</span>
-        </button>
+      <div class="user-selector">
+        <div class="user-dropdown" id="userDropdown">
+          <span id="currentUserDisplay">@rohit_dwivedi</span>
+          <span class="user-dropdown-arrow">▼</span>
+        </div>
+        <div class="user-menu" id="userMenu">
+          <div id="userMenuItems"></div>
+          <div class="add-user-btn" id="addUserBtn">+ Add Another Account</div>
+        </div>
       </div>
+
+      <button id="scanBtn" class="scan-btn">
+        <span>🔄</span>
+        <span>Scan Now</span>
+      </button>
 
       <div class="control-row">
         <div class="auto-scan-toggle">
           <label class="toggle-switch" id="autoScanToggle">
             <input type="checkbox" id="autoScanCheck" hidden />
           </label>
-          <span>Auto-scan every</span>
-          <select id="scanInterval" style="background: transparent; color: white; border: none;">
-            <option value="3600">1 hour</option>
-            <option value="7200">2 hours</option>
-            <option value="14400">4 hours</option>
-            <option value="28800">8 hours</option>
+          <span>Auto-scan</span>
+          <select id="scanInterval" class="scan-frequency">
+            <option value="3600">hourly</option>
+            <option value="21600">every 6h</option>
+            <option value="43200">twice daily</option>
+            <option value="86400">daily</option>
           </select>
         </div>
 
@@ -355,8 +579,16 @@
             <span class="scan-status-dot" id="scanStatusDot"></span>
             <span id="scanStatusText">Ready</span>
           </div>
-          <span id="lastCheck" class="last-check">Never scanned</span>
         </div>
+      </div>
+
+      <div style="font-size: 11px; color: rgba(255,255,255,0.6);">
+        <span id="lastCheck">Never scanned</span>
+        <div class="next-scan" id="nextScan"></div>
+      </div>
+
+      <div class="progress-bar" id="scanProgress" style="display: none;">
+        <div class="progress-fill" id="scanProgressFill"></div>
       </div>
     </div>
   </div>
@@ -388,11 +620,7 @@
         </div>
       </div>
 
-      <div class="info-box">
-        <strong>How it works:</strong> Click "Scan Now" to check your followers. The extension will open your X followers page and compare with previous scans to detect unfollows.
-      </div>
-
-      <div id="recentActivity" style="margin-top: 16px;"></div>
+      <div id="recentActivity"></div>
     </div>
 
     <div id="unfollowersView" style="display: none;">
