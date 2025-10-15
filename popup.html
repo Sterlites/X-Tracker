@@ -1,0 +1,270 @@
+// ============================================
+// FILE: popup.html
+// ============================================
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>X Unfollow Tracker</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      width: 384px;
+      min-height: 500px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: white;
+    }
+    
+    .header {
+      background: linear-gradient(90deg, #2563eb 0%, #3b82f6 100%);
+      padding: 16px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    }
+    
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    
+    .title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 20px;
+      font-weight: bold;
+    }
+    
+    .scan-btn {
+      background: rgba(255,255,255,0.2);
+      border: none;
+      padding: 8px 12px;
+      border-radius: 8px;
+      color: white;
+      cursor: pointer;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.2s;
+    }
+    
+    .scan-btn:hover {
+      background: rgba(255,255,255,0.3);
+    }
+    
+    .scan-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    .last-check {
+      font-size: 11px;
+      color: rgba(255,255,255,0.8);
+    }
+    
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    
+    .tab {
+      flex: 1;
+      padding: 12px;
+      background: none;
+      border: none;
+      color: rgba(255,255,255,0.6);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    
+    .tab.active {
+      color: #60a5fa;
+      border-bottom: 2px solid #60a5fa;
+      background: rgba(255,255,255,0.05);
+    }
+    
+    .content {
+      padding: 16px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    
+    .stat-card {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 16px;
+    }
+    
+    .stat-label {
+      font-size: 11px;
+      color: rgba(255,255,255,0.6);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    
+    .stat-value {
+      font-size: 24px;
+      font-weight: bold;
+    }
+    
+    .user-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    
+    .user-card {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .user-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 16px;
+    }
+    
+    .user-details {
+      font-size: 13px;
+    }
+    
+    .user-name {
+      font-weight: 500;
+    }
+    
+    .user-username {
+      color: rgba(255,255,255,0.5);
+      font-size: 12px;
+    }
+    
+    .user-time {
+      text-align: right;
+      font-size: 11px;
+    }
+    
+    .user-status {
+      font-weight: 500;
+      margin-bottom: 2px;
+    }
+    
+    .time-ago {
+      color: rgba(255,255,255,0.5);
+    }
+    
+    .info-box {
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 12px;
+      line-height: 1.5;
+      margin-top: 16px;
+    }
+    
+    .footer {
+      border-top: 1px solid rgba(255,255,255,0.1);
+      padding: 12px;
+      text-align: center;
+      font-size: 11px;
+      color: rgba(255,255,255,0.4);
+      background: rgba(0,0,0,0.2);
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-top">
+      <div class="title">
+        <span>👥</span>
+        <span>X Unfollow Tracker</span>
+      </div>
+    <div id="lastCheck" class="last-check"></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-view="dashboard">Dashboard</button>
+    <button class="tab" data-view="unfollowers">Unfollowers</button>
+    <button class="tab" data-view="new">New Followers</button>
+  </div>
+
+  <div class="content">
+    <div id="dashboardView">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">👥 Total Followers</div>
+          <div class="stat-value" id="totalFollowers">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">➕ New Followers</div>
+          <div class="stat-value" style="color: #10b981" id="newFollowersCount">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">➖ Unfollowers</div>
+          <div class="stat-value" style="color: #ef4444" id="unfollowersCount">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">📈 Net Growth</div>
+          <div class="stat-value" style="color: #60a5fa" id="netGrowth">0</div>
+        </div>
+      </div>
+
+      <div class="info-box">
+        <strong>How it works:</strong> Click "Scan Now" to check your followers. The extension will open your X followers page and compare with previous scans to detect unfollows.
+      </div>
+
+      <div id="recentActivity" style="margin-top: 16px;"></div>
+    </div>
+
+    <div id="unfollowersView" style="display: none;">
+      <div id="unfollowersList"></div>
+    </div>
+
+    <div id="newFollowersView" style="display: none;">
+      <div id="newFollowersList"></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    Data stored locally in your browser • No external servers
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
