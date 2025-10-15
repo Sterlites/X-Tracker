@@ -7,34 +7,33 @@
 (async function() {
   console.log('X Follower Scraper started');
 
-  let followers = new Set();
+  let followers = new Map(); // key: username -> { username, name, timestamp }
   let scrollAttempts = 0;
-  const maxScrollAttempts = 50; // Adjust based on follower count
+  const maxScrollAttempts = 100; // Allow more attempts for large lists
+  const idleRetryLimit = 5;
 
   // Function to extract followers from current view
   function extractFollowers() {
     // X's HTML structure (as of 2024/2025 - may change!)
     // Followers are in divs with data-testid="UserCell"
     const userCells = document.querySelectorAll('[data-testid="UserCell"]');
-    
+
     userCells.forEach(cell => {
       try {
-        // Extract username - typically in a link element
         const usernameLink = cell.querySelector('a[href^="/"]');
-        if (usernameLink) {
-          const href = usernameLink.getAttribute('href');
-          const username = href.split('/')[1].split('?')[0];
-          
-          // Extract display name
-          const nameElement = cell.querySelector('[dir="ltr"] span');
-          const displayName = nameElement ? nameElement.textContent : username;
-          
-          if (username && username !== 'i' && username !== 'home') {
-            followers.add(JSON.stringify({
-              username: username,
-              name: displayName,
-              timestamp: Date.now()
-            }));
+        if (!usernameLink) return;
+        const href = usernameLink.getAttribute('href');
+        const parts = href.split('/').filter(Boolean);
+        const username = parts[0] || parts[1] || '';
+        if (!username) return;
+
+        // Extract display name
+        const nameElement = cell.querySelector('[dir="ltr"] span');
+        const displayName = nameElement ? nameElement.textContent.trim() : username;
+
+        if (username && username !== 'i' && username !== 'home') {
+          if (!followers.has(username)) {
+            followers.set(username, { username, name: displayName, timestamp: Date.now() });
           }
         }
       } catch (e) {
@@ -47,28 +46,26 @@
   function scrollToLoad() {
     return new Promise((resolve) => {
       const previousSize = followers.size;
-      
-      // Scroll to bottom
-      window.scrollTo(0, document.body.scrollHeight);
-      
+
+      // Smooth scroll a bit to trigger lazy-loading
+      window.scrollBy({ top: window.innerHeight * 2, left: 0, behavior: 'smooth' });
+
       // Wait for new content to load
       setTimeout(() => {
         extractFollowers();
-        
-        // Check if new followers were loaded
+
         if (followers.size === previousSize) {
           scrollAttempts++;
-          if (scrollAttempts >= 3) {
-            // No new followers after 3 attempts, we're done
+          if (scrollAttempts >= idleRetryLimit) {
             resolve(true);
             return;
           }
         } else {
           scrollAttempts = 0; // Reset if we found new followers
         }
-        
+
         resolve(false);
-      }, 2000); // Wait 2 seconds for content to load
+      }, 1500); // Wait 1.5 seconds for content to load
     });
   }
 
@@ -79,69 +76,85 @@
     
     // Initial extraction
     extractFollowers();
-    
+
+    // Observe DOM changes to capture dynamically added user cells faster
+    const observer = new MutationObserver((mutations) => {
+      extractFollowers();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+
     // Keep scrolling until no more followers or max attempts reached
     while (!isDone && iterations < maxScrollAttempts) {
       isDone = await scrollToLoad();
       iterations++;
-      
-      // Update user on progress
-      console.log(`Scanned ${followers.size} followers...`);
+      console.log(`Scanned ${followers.size} followers... (iter ${iterations})`);
     }
-    
-    return Array.from(followers).map(f => JSON.parse(f));
+
+    observer.disconnect();
+    return Array.from(followers.values());
   }
 
   // Start the scan
   try {
     const scannedFollowers = await scanAllFollowers();
-    
+
     console.log(`Scan complete! Found ${scannedFollowers.length} followers`);
-    
+
     // Compare with previous scan
-    chrome.storage.local.get(['followers'], (result) => {
+    chrome.storage.local.get(['followers', 'unfollowers', '_currentScanTabId'], (result) => {
       const previousFollowers = result.followers || [];
       const previousUsernames = new Set(previousFollowers.map(f => f.username));
       const currentUsernames = new Set(scannedFollowers.map(f => f.username));
-      
+
       // Find unfollowers (in previous but not in current)
-      const unfollowers = previousFollowers.filter(
+      const newUnfollowers = previousFollowers.filter(
         f => !currentUsernames.has(f.username)
       ).map(f => ({...f, unfollowedAt: Date.now()}));
-      
+
       // Find new followers (in current but not in previous)
       const newFollowers = scannedFollowers.filter(
         f => !previousUsernames.has(f.username)
       );
-      
-      // Update storage
+
+      // Merge unfollower history with existing unfollowers (keep uniq by username)
+      const existingUnfollowers = result.unfollowers || [];
+      const mergedUnfollowersMap = new Map();
+      existingUnfollowers.concat(newUnfollowers).forEach(u => mergedUnfollowersMap.set(u.username, u));
+      const mergedUnfollowers = Array.from(mergedUnfollowersMap.values());
+
+      // Persist updated lists
       chrome.storage.local.set({
         followers: scannedFollowers,
-        unfollowers: unfollowers,
+        unfollowers: mergedUnfollowers,
         newFollowers: newFollowers,
         lastCheck: Date.now()
       }, () => {
         // Notify user
-        if (unfollowers.length > 0) {
-          chrome.notifications?.create({
-            type: 'basic',
-            iconUrl: 'icons/icon48.png',
-            title: 'X Unfollow Tracker',
-            message: `${unfollowers.length} user(s) unfollowed you`
-          });
+        if (newUnfollowers.length > 0) {
+          try {
+            chrome.notifications?.create?.({
+              type: 'basic',
+              iconUrl: 'icons/icon48.png',
+              title: 'X Unfollow Tracker',
+              message: `${newUnfollowers.length} user(s) unfollowed you`
+            });
+          } catch (e) { console.warn('Notification failed', e); }
         }
-        
-        // Close the tab
+
+        // Send completion message including the scan tab id if available
+        const tabId = result._currentScanTabId || null;
         chrome.runtime.sendMessage({
           action: 'scanComplete',
+          tabId: tabId,
           stats: {
             total: scannedFollowers.length,
-            unfollowers: unfollowers.length,
+            unfollowers: newUnfollowers.length,
             newFollowers: newFollowers.length
           }
         });
-        
-        window.close();
+
+        // Close the window (tab)
+        try { window.close(); } catch (e) { /* ignore */ }
       });
     });
     

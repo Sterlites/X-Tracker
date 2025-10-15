@@ -9,11 +9,25 @@ let currentView = 'dashboard';
 document.addEventListener('DOMContentLoaded', () => {
   loadStats();
   setupEventListeners();
+  // Load saved username
+  chrome.storage.local.get(['username'], (res) => {
+    if (res.username) {
+      const el = document.getElementById('usernameInput');
+      if (el) el.value = res.username;
+    }
+  });
 });
 
 function setupEventListeners() {
   // Scan button
-  document.getElementById('scanBtn').addEventListener('click', startScan);
+  const scanBtn = document.getElementById('scanBtn');
+  if (scanBtn) scanBtn.addEventListener('click', startScan);
+  const usernameInput = document.getElementById('usernameInput');
+  if (usernameInput) {
+    usernameInput.addEventListener('change', (e) => {
+      chrome.storage.local.set({ username: e.target.value });
+    });
+  }
   
   // Tab switching
   document.querySelectorAll('.tab').forEach(tab => {
@@ -43,22 +57,28 @@ function switchView(view) {
 
 function startScan() {
   const btn = document.getElementById('scanBtn');
+  if (!btn) return;
+
+  const username = (document.getElementById('usernameInput') && document.getElementById('usernameInput').value) || '';
+  if (!username) {
+    alert('Please enter your X username (without @) before scanning.');
+    return;
+  }
+
   btn.disabled = true;
   btn.innerHTML = '<span>⏳</span><span>Scanning...</span>';
-  
-  // Send message to background script to start scan
-  chrome.runtime.sendMessage({ action: 'startScan' }, (response) => {
+
+  // Save username
+  chrome.storage.local.set({ username });
+
+  // Send message to background script to start scan and include username
+  chrome.runtime.sendMessage({ action: 'startScan', username }, (response) => {
     if (response?.status === 'scanning') {
-      // Scan started successfully
-      setTimeout(() => {
-        loadStats();
-        btn.disabled = false;
-        btn.innerHTML = '<span>🔄</span><span>Scan Now</span>';
-      }, 3000);
+      // Scan started successfully - keep button disabled until scanComplete message
     } else {
       btn.disabled = false;
       btn.innerHTML = '<span>🔄</span><span>Scan Now</span>';
-      alert('Error starting scan. Make sure you are logged into X.');
+      alert('Error starting scan. Make sure you are logged into X and the username is correct.');
     }
   });
 }

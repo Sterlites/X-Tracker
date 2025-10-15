@@ -23,38 +23,78 @@ chrome.runtime.onInstalled.addListener(() => {
 // Listen for messages from popup or content script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'startScan') {
-    startFollowerScan(sendResponse);
+    // Accept username from popup or use stored username
+    const username = request.username;
+    startFollowerScan(sendResponse, username);
     return true; // Indicates async response
   }
-  
+
   if (request.action === 'getStats') {
     getStoredStats(sendResponse);
     return true;
   }
+
+  // Messages from content script
+  if (request.action === 'scanComplete') {
+    // Update scanHistory
+    chrome.storage.local.get(['scanHistory'], (res) => {
+      const history = res.scanHistory || [];
+      history.unshift({ timestamp: Date.now(), stats: request.stats || {} });
+      if (history.length > 50) history.length = 50;
+      chrome.storage.local.set({ scanHistory: history });
+    });
+
+    // Close the scan tab if provided
+    if (request.tabId) {
+      try { chrome.tabs.remove(request.tabId); } catch (e) {}
+    }
+
+    return;
+  }
+
+  if (request.action === 'scanError') {
+    console.error('Scan error reported:', request.error);
+    chrome.storage.local.set({ lastError: request.error });
+    return;
+  }
 });
 
-async function startFollowerScan(sendResponse) {
+async function startFollowerScan(sendResponse, providedUsername) {
   try {
-    // Get current X username by checking active tab or stored preference
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    
-    // Create a new tab to scan followers
-    const scanTab = await chrome.tabs.create({
-      url: 'https://x.com/YOUR_USERNAME/followers',
-      active: false
-    });
+    // Resolve username: provided or stored
+    let username = providedUsername;
+    if (!username) {
+      const stored = await new Promise(resolve => chrome.storage.local.get(['username'], resolve));
+      username = stored.username;
+    }
+
+    if (!username) {
+      sendResponse({ status: 'error', message: 'No username provided or stored' });
+      return;
+    }
+
+    const followersUrl = `https://x.com/${encodeURIComponent(username)}/followers`;
+
+    // Create a new tab to scan followers (inactive)
+    const scanTab = await chrome.tabs.create({ url: followersUrl, active: false });
+    const scanTabId = scanTab.id;
 
     // Wait for page to load, then inject content script
     chrome.tabs.onUpdated.addListener(function listener(tabId, info) {
-      if (tabId === scanTab.id && info.status === 'complete') {
+      if (tabId === scanTabId && info.status === 'complete') {
         chrome.tabs.onUpdated.removeListener(listener);
-        
-        // Inject the scraper
-        chrome.scripting.executeScript({
-          target: { tabId: scanTab.id },
-          files: ['scraper.js']
-        }).then(() => {
-          sendResponse({ status: 'scanning' });
+
+        // Store current scan context for the content script to use if needed
+        chrome.storage.local.set({ _currentScanTabId: scanTabId, _currentScanUsername: username }, () => {
+          // Inject the scraper
+          chrome.scripting.executeScript({
+            target: { tabId: scanTabId },
+            files: ['scraper.js']
+          }).then(() => {
+            sendResponse({ status: 'scanning', tabId: scanTabId });
+          }).catch(err => {
+            sendResponse({ status: 'error', message: err.message });
+          });
         });
       }
     });
