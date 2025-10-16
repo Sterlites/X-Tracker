@@ -1,20 +1,18 @@
 // ============================================
-// FILE: background.js (IMPROVED VERSION)
+// FILE: background.js (ENHANCED VERSION)
 // ============================================
-// Background service worker for the extension
+// Background service worker with followers and following support
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log('[X Unfollow Tracker] Extension installed');
   
   // Initialize storage
-  chrome.storage.local.get(['followers'], (result) => {
-    if (!result.followers) {
+  chrome.storage.local.get(['users'], (result) => {
+    if (!result.users) {
       chrome.storage.local.set({
-        followers: [],
-        unfollowers: [],
-        newFollowers: [],
-        lastCheck: null,
-        scanHistory: [],
+        users: {},
+        userList: [],
+        currentUser: null,
         scanStatus: 'idle'
       });
       console.log('[X Unfollow Tracker] Storage initialized');
@@ -28,7 +26,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   if (request.action === 'startScan') {
     const username = request.username;
-    startFollowerScan(sendResponse, username);
+    const scanType = request.scanType || 'followers';
+    startScan(sendResponse, username, scanType);
     return true; // Indicates async response
   }
 
@@ -40,19 +39,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'scanComplete') {
     console.log('[X Unfollow Tracker] Scan completed successfully');
     
-    chrome.storage.local.get(['scanHistory'], (res) => {
-      const history = res.scanHistory || [];
-      history.unshift({ 
-        timestamp: Date.now(), 
-        stats: request.stats || {} 
-      });
-      if (history.length > 50) history.length = 50;
-      
-      chrome.storage.local.set({ 
-        scanHistory: history,
-        scanStatus: 'complete',
-        lastScanTime: Date.now()
-      });
+    chrome.storage.local.set({ 
+      scanStatus: 'complete',
+      lastScanTime: Date.now()
     });
 
     return;
@@ -66,10 +55,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     });
     return;
   }
+
+  if (request.action === 'scanProgress') {
+    chrome.storage.local.set({ 
+      scanProgress: request.progress 
+    });
+    return;
+  }
 });
 
-async function startFollowerScan(sendResponse, providedUsername) {
-  console.log('[X Unfollow Tracker] Starting scan for username:', providedUsername);
+async function startScan(sendResponse, providedUsername, scanType) {
+  console.log('[X Unfollow Tracker] Starting scan:', scanType, 'for username:', providedUsername);
 
   try {
     // Validate username
@@ -93,9 +89,10 @@ async function startFollowerScan(sendResponse, providedUsername) {
     // Remove @ symbol if present
     username = username.replace('@', '');
 
-    // Build followers URL
-    const followersUrl = `https://x.com/${encodeURIComponent(username)}/followers`;
-    console.log('[X Unfollow Tracker] Target URL:', followersUrl);
+    // Build URL based on scan type
+    const pageType = scanType === 'following' ? 'following' : 'followers';
+    const targetUrl = `https://x.com/${encodeURIComponent(username)}/${pageType}`;
+    console.log('[X Unfollow Tracker] Target URL:', targetUrl);
     
     // Get or create tab
     const [currentTab] = await chrome.tabs.query({ 
@@ -118,14 +115,15 @@ async function startFollowerScan(sendResponse, providedUsername) {
     await new Promise(resolve => {
       chrome.storage.local.set({ 
         scanStatus: 'scanning',
+        currentScanType: scanType,
         _currentScanTabId: scanTabId,
         _currentScanUsername: username 
       }, resolve);
     });
 
-    // Navigate to followers page
-    console.log('[X Unfollow Tracker] Navigating to followers page...');
-    await chrome.tabs.update(scanTabId, { url: followersUrl });
+    // Navigate to page
+    console.log('[X Unfollow Tracker] Navigating to page...');
+    await chrome.tabs.update(scanTabId, { url: targetUrl });
 
     // Wait for page to fully load, then inject scraper
     let listenerAttached = false;
@@ -136,7 +134,8 @@ async function startFollowerScan(sendResponse, providedUsername) {
       console.log('[X Unfollow Tracker] Tab status:', info.status, 'URL:', tab.url);
 
       // Check if we're on the right page and it's fully loaded
-      if (info.status === 'complete' && tab.url && tab.url.includes('/followers')) {
+      if (info.status === 'complete' && tab.url && 
+          (tab.url.includes('/followers') || tab.url.includes('/following'))) {
         if (listenerAttached) {
           chrome.tabs.onUpdated.removeListener(listener);
           listenerAttached = false;
@@ -190,18 +189,19 @@ async function startFollowerScan(sendResponse, providedUsername) {
 
 async function getStoredStats(sendResponse) {
   chrome.storage.local.get([
-    'followers',
-    'unfollowers',
-    'newFollowers',
-    'lastCheck',
-    'scanHistory'
+    'users',
+    'currentUser'
   ], (result) => {
+    const users = result.users || {};
+    const currentUser = result.currentUser;
+    const userData = users[currentUser] || {};
+    
     sendResponse({
-      totalFollowers: result.followers?.length || 0,
-      unfollowers: result.unfollowers || [],
-      newFollowers: result.newFollowers || [],
-      lastCheck: result.lastCheck,
-      scanHistory: result.scanHistory || []
+      totalFollowers: userData.followers?.length || 0,
+      totalFollowing: userData.following?.length || 0,
+      unfollowers: userData.unfollowers || [],
+      newFollowers: userData.newFollowers || [],
+      lastCheck: userData.lastFollowersCheck || userData.lastFollowingCheck
     });
   });
 }

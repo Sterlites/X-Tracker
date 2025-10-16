@@ -8,8 +8,8 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
     
     body {
-      width: 420px;
-      min-height: 550px;
+      width: 450px;
+      min-height: 600px;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
       color: white;
@@ -86,11 +86,44 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      position: relative;
     }
     
     .user-menu-item:hover { background: rgba(59, 130, 246, 0.2); }
     .user-menu-item.active { background: rgba(59, 130, 246, 0.3); font-weight: 500; }
-    .user-menu-item .user-stats { font-size: 11px; color: rgba(255,255,255,0.6); }
+    
+    .user-menu-item-content {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+    }
+    
+    .user-stats { 
+      font-size: 10px; 
+      color: rgba(255,255,255,0.5); 
+      margin-top: 2px;
+    }
+    
+    .remove-user-btn {
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #ef4444;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.2s;
+      opacity: 0;
+    }
+    
+    .user-menu-item:hover .remove-user-btn {
+      opacity: 1;
+    }
+    
+    .remove-user-btn:hover {
+      background: rgba(239, 68, 68, 0.4);
+      border-color: #ef4444;
+    }
     
     .add-user-btn {
       background: rgba(16, 185, 129, 0.2);
@@ -110,28 +143,42 @@
       border-color: #10b981;
     }
     
+    .scan-buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    
     .scan-btn {
       background: #3b82f6;
       border: none;
-      padding: 10px 16px;
+      padding: 10px 12px;
       border-radius: 8px;
       color: white;
       cursor: pointer;
-      font-size: 14px;
+      font-size: 13px;
       display: flex;
       align-items: center;
       gap: 6px;
       transition: all 0.2s;
       font-weight: 500;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      width: 100%;
       justify-content: center;
+    }
+    
+    .scan-btn.following {
+      background: #8b5cf6;
     }
     
     .scan-btn:hover:not(:disabled) {
       background: #2563eb;
       transform: translateY(-1px);
       box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    }
+    
+    .scan-btn.following:hover:not(:disabled) {
+      background: #7c3aed;
     }
     
     .scan-btn:disabled {
@@ -141,58 +188,20 @@
       box-shadow: none;
     }
     
-    .header-controls { display: flex; flex-direction: column; gap: 12px; }
-    .control-row { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
-    
-    .auto-scan-toggle {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 12px;
-      color: rgba(255,255,255,0.8);
+    .scan-info { 
+      display: flex; 
+      align-items: center; 
+      justify-content: space-between;
+      font-size: 11px; 
+      color: rgba(255,255,255,0.7); 
+      margin-bottom: 8px;
     }
     
-    .scan-frequency {
-      background: rgba(255,255,255,0.1);
-      border: 1px solid rgba(255,255,255,0.2);
-      padding: 4px 8px;
-      border-radius: 6px;
-      color: white;
-      font-size: 12px;
+    .scan-status { 
+      display: flex; 
+      align-items: center; 
+      gap: 4px; 
     }
-    
-    .scan-frequency:focus { outline: none; border-color: #3b82f6; }
-    .scan-frequency option { background: #16213e; }
-    
-    .toggle-switch {
-      width: 36px;
-      height: 20px;
-      background: rgba(255,255,255,0.2);
-      border-radius: 10px;
-      position: relative;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-    
-    .toggle-switch.active { background: #3b82f6; }
-    
-    .toggle-switch::after {
-      content: '';
-      position: absolute;
-      width: 16px;
-      height: 16px;
-      background: white;
-      border-radius: 50%;
-      top: 2px;
-      left: 2px;
-      transition: transform 0.2s;
-    }
-    
-    .toggle-switch.active::after { transform: translateX(16px); }
-    
-    .scan-info { display: flex; align-items: center; gap: 8px; font-size: 12px; color: rgba(255,255,255,0.7); }
-    
-    .scan-status { display: flex; align-items: center; gap: 4px; font-size: 11px; color: rgba(255,255,255,0.6); }
     
     .scan-status-dot {
       width: 6px;
@@ -211,25 +220,24 @@
       50% { opacity: 0.4; transform: scale(1.2); }
       100% { opacity: 1; transform: scale(1); }
     }
-
-    .next-scan { font-size: 10px; color: rgba(255,255,255,0.5); margin-top: 4px; }
-    .last-check { font-size: 11px; color: rgba(255,255,255,0.8); }
     
     .tabs {
       display: flex;
       border-bottom: 1px solid rgba(255,255,255,0.1);
+      overflow-x: auto;
     }
     
     .tab {
       flex: 1;
-      padding: 12px;
+      padding: 12px 8px;
       background: none;
       border: none;
       color: rgba(255,255,255,0.6);
       cursor: pointer;
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 500;
       transition: all 0.2s;
+      white-space: nowrap;
     }
     
     .tab.active {
@@ -335,7 +343,20 @@
       margin-top: 2px;
     }
 
-    /* Action buttons styling */
+    .follows-back-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      background: rgba(139, 92, 246, 0.2);
+      border: 1px solid rgba(139, 92, 246, 0.4);
+      color: #a78bfa;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      margin-left: 4px;
+    }
+
     .action-btn {
       padding: 5px 7px;
       border: none;
@@ -353,26 +374,6 @@
       background: rgba(255,255,255,0.2);
       color: white;
       transform: scale(1.05);
-    }
-
-    .action-btn-current {
-      background: rgba(139, 92, 246, 0.2);
-      color: #a78bfa;
-    }
-
-    .action-btn-current:hover {
-      background: rgba(139, 92, 246, 0.4);
-      color: #c4b5fd;
-    }
-
-    .action-btn-new {
-      background: rgba(59, 130, 246, 0.2);
-      color: #60a5fa;
-    }
-
-    .action-btn-new:hover {
-      background: rgba(59, 130, 246, 0.4);
-      color: #93c5fd;
     }
 
     .action-btn svg {
@@ -436,45 +437,34 @@
     <div class="header-controls">
       <div class="user-selector">
         <div class="user-dropdown" id="userDropdown">
-          <span id="currentUserDisplay">@rohit_dwivedi</span>
+          <span id="currentUserDisplay">Select account</span>
           <span class="user-dropdown-arrow">▼</span>
         </div>
         <div class="user-menu" id="userMenu">
           <div id="userMenuItems"></div>
-          <div class="add-user-btn" id="addUserBtn">+ Add Another Account</div>
+          <div class="add-user-btn" id="addUserBtn">+ Add Account</div>
         </div>
       </div>
 
-      <button id="scanBtn" class="scan-btn">
-        <span>🔄</span>
-        <span>Scan Now</span>
-      </button>
-
-      <div class="control-row">
-        <div class="auto-scan-toggle">
-          <label class="toggle-switch" id="autoScanToggle">
-            <input type="checkbox" id="autoScanCheck" hidden />
-          </label>
-          <span>Auto-scan</span>
-          <select id="scanInterval" class="scan-frequency">
-            <option value="3600">hourly</option>
-            <option value="21600">every 6h</option>
-            <option value="43200">twice daily</option>
-            <option value="86400">daily</option>
-          </select>
-        </div>
-
-        <div class="scan-info">
-          <div class="scan-status">
-            <span class="scan-status-dot" id="scanStatusDot"></span>
-            <span id="scanStatusText">Ready</span>
-          </div>
-        </div>
+      <div class="scan-buttons">
+        <button id="scanFollowersBtn" class="scan-btn">
+          <span>👥</span>
+          <span>Scan Followers</span>
+        </button>
+        <button id="scanFollowingBtn" class="scan-btn following">
+          <span>🔗</span>
+          <span>Scan Following</span>
+        </button>
       </div>
 
-      <div style="font-size: 11px; color: rgba(255,255,255,0.6);">
-        <span id="lastCheck">Never scanned</span>
-        <div class="next-scan" id="nextScan"></div>
+      <div class="scan-info">
+        <div style="font-size: 11px; color: rgba(255,255,255,0.6);">
+          <span id="lastCheck">Never scanned</span>
+        </div>
+        <div class="scan-status">
+          <span class="scan-status-dot" id="scanStatusDot"></span>
+          <span id="scanStatusText">Ready</span>
+        </div>
       </div>
 
       <div class="progress-bar" id="scanProgress" style="display: none;">
@@ -486,27 +476,28 @@
   <div class="tabs">
     <button class="tab active" data-view="dashboard">Dashboard</button>
     <button class="tab" data-view="unfollowers">Unfollowers</button>
-    <button class="tab" data-view="new">New Followers</button>
+    <button class="tab" data-view="new">New</button>
+    <button class="tab" data-view="following">Following</button>
   </div>
 
   <div class="content">
     <div id="dashboardView">
       <div class="stats-grid">
         <div class="stat-card">
-          <div class="stat-label">👥 Total Followers</div>
+          <div class="stat-label">👥 Followers</div>
           <div class="stat-value" id="totalFollowers">0</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">➕ New Followers</div>
-          <div class="stat-value" style="color: #10b981" id="newFollowersCount">0</div>
+          <div class="stat-label">🔗 Following</div>
+          <div class="stat-value" id="totalFollowing">0</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">➖ Unfollowers</div>
           <div class="stat-value" style="color: #ef4444" id="unfollowersCount">0</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">📈 Net Growth</div>
-          <div class="stat-value" style="color: #60a5fa" id="netGrowth">0</div>
+          <div class="stat-label">➕ New</div>
+          <div class="stat-value" style="color: #10b981" id="newFollowersCount">0</div>
         </div>
       </div>
 
@@ -519,6 +510,10 @@
 
     <div id="newFollowersView" style="display: none;">
       <div id="newFollowersList"></div>
+    </div>
+
+    <div id="followingView" style="display: none;">
+      <div id="followingList"></div>
     </div>
   </div>
 

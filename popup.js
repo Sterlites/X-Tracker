@@ -1,16 +1,15 @@
-// Popup interface with multi-user support and profile actions
-let currentView = 'dashboard', currentUser = 'rohit_dwivedi', userList = [], nextScanInterval = null;
+// Enhanced popup with multi-user, remove user, and following tracking
+let currentView = 'dashboard', currentUser = null, userList = [];
 
 document.addEventListener('DOMContentLoaded', () => {
   loadUserData();
   setupEventListeners();
-  startNextScanCountdown();
 });
 
 async function loadUserData() {
-  const data = await getStorageData(['users', 'currentUser', 'userList', 'autoScan', 'scanInterval', 'scanStatus', 'nextScanTime']);
+  const data = await getStorageData(['users', 'currentUser', 'userList', 'scanStatus']);
   
-  currentUser = data.currentUser || 'rohit_dwivedi';
+  currentUser = data.currentUser;
   userList = data.userList || [];
   
   if (!userList.length && currentUser) {
@@ -18,7 +17,7 @@ async function loadUserData() {
     await chrome.storage.local.set({ userList });
   }
   
-  if (!userList.includes(currentUser)) {
+  if (currentUser && !userList.includes(currentUser)) {
     userList.unshift(currentUser);
     await chrome.storage.local.set({ userList });
   }
@@ -26,17 +25,6 @@ async function loadUserData() {
   updateUserDropdown();
   loadStats();
   
-  const toggle = document.getElementById('autoScanToggle');
-  const check = document.getElementById('autoScanCheck');
-  if (toggle && check) {
-    check.checked = data.autoScan || false;
-    toggle.classList.toggle('active', check.checked);
-  }
-  
-  const interval = document.getElementById('scanInterval');
-  if (interval) interval.value = data.scanInterval || 3600;
-  
-  if (data.autoScan && data.nextScanTime) updateNextScanDisplay(data.nextScanTime);
   if (data.scanStatus === 'scanning') startScanMonitoring();
 }
 
@@ -44,7 +32,9 @@ function updateUserDropdown() {
   const dropdown = document.getElementById('currentUserDisplay');
   const menuItems = document.getElementById('userMenuItems');
   
-  if (dropdown) dropdown.textContent = `@${currentUser}`;
+  if (dropdown) {
+    dropdown.textContent = currentUser ? `@${currentUser}` : 'Select account';
+  }
   
   if (menuItems) {
     menuItems.innerHTML = '';
@@ -53,15 +43,35 @@ function updateUserDropdown() {
       userList.forEach(username => {
         const userData = users[username] || {};
         const followerCount = userData.followers?.length || 0;
-        const scanCount = userData.scanCount || 0;
-        let statsText = `${followerCount} followers`;
-        if (scanCount > 0) statsText += ` • ${scanCount} scans`;
-        if (userData.lastCheck) statsText += ` • ${formatTimeAgo(userData.lastCheck)}`;
+        const followingCount = userData.following?.length || 0;
+        
+        let statsText = '';
+        if (followerCount > 0) statsText += `${followerCount} followers`;
+        if (followingCount > 0) {
+          if (statsText) statsText += ' • ';
+          statsText += `${followingCount} following`;
+        }
+        if (!statsText) statsText = 'Not scanned yet';
         
         const item = document.createElement('div');
         item.className = 'user-menu-item' + (username === currentUser ? ' active' : '');
-        item.innerHTML = `<span>@${username}</span><span class="user-stats">${statsText}</span>`;
-        item.addEventListener('click', () => switchUser(username));
+        item.innerHTML = `
+          <div class="user-menu-item-content">
+            <span>@${username}</span>
+            <span class="user-stats">${statsText}</span>
+          </div>
+          <button class="remove-user-btn" data-username="${username}" onclick="event.stopPropagation()">Remove</button>
+        `;
+        
+        item.addEventListener('click', (e) => {
+          if (!e.target.classList.contains('remove-user-btn')) {
+            switchUser(username);
+          }
+        });
+        
+        const removeBtn = item.querySelector('.remove-user-btn');
+        removeBtn.addEventListener('click', () => removeUser(username));
+        
         menuItems.appendChild(item);
       });
     });
@@ -78,26 +88,63 @@ function switchUser(username) {
   showNotification(`Switched to @${username}`, 'success');
 }
 
+async function removeUser(username) {
+  if (userList.length === 1) {
+    showNotification('Cannot remove the last account', 'warning');
+    return;
+  }
+  
+  if (!confirm(`Remove @${username} and all its data?`)) return;
+  
+  // Remove from user list
+  userList = userList.filter(u => u !== username);
+  
+  // Remove user data
+  const data = await getStorageData(['users']);
+  const users = data.users || {};
+  delete users[username];
+  
+  // Update storage
+  await chrome.storage.local.set({ 
+    users: users, 
+    userList: userList 
+  });
+  
+  // Switch to another user if we removed the current one
+  if (currentUser === username) {
+    currentUser = userList[0];
+    await chrome.storage.local.set({ currentUser: currentUser });
+  }
+  
+  updateUserDropdown();
+  loadStats();
+  showNotification(`Removed @${username}`, 'success');
+}
+
 function setupEventListeners() {
-  const scanBtn = document.getElementById('scanBtn');
-  if (scanBtn) scanBtn.addEventListener('click', startScan);
+  const scanFollowersBtn = document.getElementById('scanFollowersBtn');
+  if (scanFollowersBtn) scanFollowersBtn.addEventListener('click', () => startScan('followers'));
+  
+  const scanFollowingBtn = document.getElementById('scanFollowingBtn');
+  if (scanFollowingBtn) scanFollowingBtn.addEventListener('click', () => startScan('following'));
   
   const userDropdown = document.getElementById('userDropdown');
-  if (userDropdown) userDropdown.addEventListener('click', (e) => { e.stopPropagation(); toggleUserMenu(); });
+  if (userDropdown) userDropdown.addEventListener('click', (e) => { 
+    e.stopPropagation(); 
+    toggleUserMenu(); 
+  });
   
   document.addEventListener('click', closeUserMenu);
   
   const addUserBtn = document.getElementById('addUserBtn');
-  if (addUserBtn) addUserBtn.addEventListener('click', (e) => { e.stopPropagation(); promptAddUser(); });
+  if (addUserBtn) addUserBtn.addEventListener('click', (e) => { 
+    e.stopPropagation(); 
+    promptAddUser(); 
+  });
   
-  const toggle = document.getElementById('autoScanToggle');
-  const check = document.getElementById('autoScanCheck');
-  if (toggle && check) toggle.addEventListener('click', () => { check.checked = !check.checked; toggle.classList.toggle('active', check.checked); updateAutoScan(); });
-  
-  const interval = document.getElementById('scanInterval');
-  if (interval) interval.addEventListener('change', updateAutoScan);
-  
-  document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', (e) => switchView(e.target.dataset.view)));
+  document.querySelectorAll('.tab').forEach(tab => 
+    tab.addEventListener('click', (e) => switchView(e.target.dataset.view))
+  );
 
   // Handle profile action buttons
   const content = document.querySelector('.content');
@@ -112,17 +159,10 @@ function setupEventListeners() {
       const username = target.dataset.username;
       const url = `https://x.com/${username}`;
       
-      if (target.classList.contains('action-btn-current')) {
-        // Open in current tab without closing popup
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (tab?.id) {
-          chrome.tabs.update(tab.id, { url });
-          showQuickToast('Opening in current tab...', 'info');
-        }
-      } else if (target.classList.contains('action-btn-new')) {
-        // Open in new tab
-        chrome.tabs.create({ url, active: true });
-        showQuickToast('Opening in new tab...', 'info');
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tab?.id) {
+        chrome.tabs.update(tab.id, { url });
+        showQuickToast('Opening profile...', 'info');
       }
     });
   }
@@ -152,8 +192,16 @@ async function promptAddUser() {
   if (!username) return;
   
   const cleanUsername = username.replace('@', '').trim();
-  if (!cleanUsername || !/^[a-zA-Z0-9_]{1,15}$/.test(cleanUsername)) return showNotification('Invalid username format', 'error');
-  if (userList.includes(cleanUsername)) { showNotification('User already tracked', 'warning'); return switchUser(cleanUsername); }
+  if (!cleanUsername || !/^[a-zA-Z0-9_]{1,15}$/.test(cleanUsername)) {
+    showNotification('Invalid username format', 'error');
+    return;
+  }
+  
+  if (userList.includes(cleanUsername)) {
+    showNotification('User already tracked', 'warning');
+    switchUser(cleanUsername);
+    return;
+  }
   
   userList.push(cleanUsername);
   await chrome.storage.local.set({ userList, currentUser: cleanUsername });
@@ -161,79 +209,48 @@ async function promptAddUser() {
   updateUserDropdown();
   closeUserMenu();
   loadStats();
-  showNotification(`Added @${cleanUsername}. Click "Scan Now" to start tracking!`, 'success');
-}
-
-function updateAutoScan() {
-  const check = document.getElementById('autoScanCheck');
-  const interval = document.getElementById('scanInterval');
-  const enabled = check?.checked || false;
-  const intervalSeconds = parseInt(interval?.value || 3600);
-  
-  chrome.storage.local.set({ autoScan: enabled, scanInterval: intervalSeconds });
-  
-  if (enabled) {
-    const nextScan = Date.now() + (intervalSeconds * 1000);
-    chrome.storage.local.set({ nextScanTime: nextScan });
-    updateNextScanDisplay(nextScan);
-    showNotification('Auto-scan enabled', 'success');
-  } else {
-    const nextScanEl = document.getElementById('nextScan');
-    if (nextScanEl) nextScanEl.textContent = '';
-    showNotification('Auto-scan disabled', 'info');
-  }
-}
-
-function updateNextScanDisplay(nextScanTime) {
-  const nextScanEl = document.getElementById('nextScan');
-  if (!nextScanEl) return;
-  
-  const updateDisplay = () => {
-    const remaining = nextScanTime - Date.now();
-    if (remaining <= 0) return nextScanEl.textContent = '';
-    const minutes = Math.floor(remaining / 60000);
-    const hours = Math.floor(minutes / 60);
-    nextScanEl.textContent = hours > 0 ? `Next scan in ${hours}h ${minutes % 60}m` : `Next scan in ${minutes}m`;
-  };
-  
-  updateDisplay();
-  if (nextScanInterval) clearInterval(nextScanInterval);
-  nextScanInterval = setInterval(updateDisplay, 30000);
-}
-
-function startNextScanCountdown() {
-  chrome.storage.local.get(['autoScan', 'nextScanTime'], (result) => {
-    if (result.autoScan && result.nextScanTime) updateNextScanDisplay(result.nextScanTime);
-  });
+  showNotification(`Added @${cleanUsername}. Click scan buttons to start!`, 'success');
 }
 
 function switchView(view) {
   currentView = view;
-  document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab.dataset.view === view));
+  document.querySelectorAll('.tab').forEach(tab => 
+    tab.classList.toggle('active', tab.dataset.view === view)
+  );
   document.getElementById('dashboardView').style.display = view === 'dashboard' ? 'block' : 'none';
   document.getElementById('unfollowersView').style.display = view === 'unfollowers' ? 'block' : 'none';
   document.getElementById('newFollowersView').style.display = view === 'new' ? 'block' : 'none';
+  document.getElementById('followingView').style.display = view === 'following' ? 'block' : 'none';
+  
   if (view !== 'dashboard') loadStats();
 }
 
-async function startScan() {
-  const btn = document.getElementById('scanBtn');
-  if (!btn) return;
-
-  const username = currentUser;
-  if (!username || username.includes('@')) return showNotification('Please enter a valid X username (without @)', 'error');
+async function startScan(scanType) {
+  if (!currentUser) {
+    showNotification('Please add an account first', 'warning');
+    return;
+  }
 
   const status = await getStorageData(['scanStatus']);
-  if (status.scanStatus === 'scanning') return showNotification('Scan already in progress', 'warning');
+  if (status.scanStatus === 'scanning') {
+    showNotification('Scan already in progress', 'warning');
+    return;
+  }
 
-  btn.disabled = true;
-  btn.innerHTML = '<span>⏳</span><span>Opening page...</span>';
+  const btn = scanType === 'followers' ? 
+    document.getElementById('scanFollowersBtn') : 
+    document.getElementById('scanFollowingBtn');
+  
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span>⏳</span><span>Opening...</span>`;
+  }
   
   const statusDot = document.getElementById('scanStatusDot');
   const statusText = document.getElementById('scanStatusText');
   if (statusDot && statusText) {
     statusDot.classList.add('scanning');
-    statusText.textContent = 'Starting...';
+    statusText.textContent = `Scanning ${scanType}...`;
   }
 
   const progressBar = document.getElementById('scanProgress');
@@ -243,14 +260,24 @@ async function startScan() {
     progressFill.style.width = '0%';
   }
 
-  chrome.storage.local.set({ currentUser: username, scanStatus: 'scanning', lastScanAttempt: Date.now() });
+  chrome.storage.local.set({ 
+    currentUser: currentUser, 
+    scanStatus: 'scanning',
+    currentScanType: scanType
+  });
 
   try {
-    const response = await sendMessage({ action: 'startScan', username });
+    const response = await sendMessage({ 
+      action: 'startScan', 
+      username: currentUser,
+      scanType: scanType
+    });
+    
     if (response?.status === 'scanning') {
       startScanMonitoring();
-      if (statusText) statusText.textContent = 'Scanning...';
-    } else throw new Error(response?.message || 'Failed to start scan');
+    } else {
+      throw new Error(response?.message || 'Failed to start scan');
+    }
   } catch (error) {
     console.error('Scan start error:', error);
     showNotification(error.message || 'Failed to start scan', 'error');
@@ -266,50 +293,49 @@ function startScanMonitoring() {
     attempts++;
     if (attempts >= maxAttempts) {
       clearInterval(checkInterval);
-      chrome.storage.local.set({ scanStatus: 'error', lastError: 'Scan timeout' });
+      chrome.storage.local.set({ scanStatus: 'error' });
       resetScanUI();
       showNotification('Scan timed out. Please try again.', 'error');
       return;
     }
     
-    chrome.storage.local.get(['scanStatus', 'scanProgress', 'lastError', '_currentScanUsername'], (result) => {
+    chrome.storage.local.get(['scanStatus', 'scanProgress', 'currentScanType'], (result) => {
       const statusText = document.getElementById('scanStatusText');
       const progressFill = document.getElementById('scanProgressFill');
       
       if (result.scanProgress) {
-        if (statusText) statusText.textContent = `Scanning... ${result.scanProgress}%`;
+        const scanType = result.currentScanType || 'users';
+        if (statusText) statusText.textContent = `Scanning ${scanType}... ${result.scanProgress}%`;
         if (progressFill) progressFill.style.width = `${result.scanProgress}%`;
       }
       
       if (result.scanStatus === 'complete') {
         clearInterval(checkInterval);
-        const scannedUser = result._currentScanUsername || currentUser;
-        if (scannedUser && !userList.includes(scannedUser)) {
-          userList.push(scannedUser);
-          chrome.storage.local.set({ userList });
-        }
-        if (scannedUser && scannedUser !== currentUser) {
-          currentUser = scannedUser;
-          chrome.storage.local.set({ currentUser: scannedUser });
-          updateUserDropdown();
-        }
         loadStats();
         resetScanUI(true);
-        showNotification(`Scan completed for @${scannedUser}!`, 'success');
+        const scanType = result.currentScanType || 'data';
+        showNotification(`Scan completed for ${scanType}!`, 'success');
       } else if (result.scanStatus === 'error') {
         clearInterval(checkInterval);
         resetScanUI();
-        showNotification(result.lastError || 'Scan failed', 'error');
+        showNotification('Scan failed', 'error');
       }
     });
   }, 1000);
 }
 
 function resetScanUI(success = false) {
-  const btn = document.getElementById('scanBtn');
-  if (btn) {
-    btn.disabled = false;
-    btn.innerHTML = '<span>🔄</span><span>Scan Now</span>';
+  const followersBtn = document.getElementById('scanFollowersBtn');
+  const followingBtn = document.getElementById('scanFollowingBtn');
+  
+  if (followersBtn) {
+    followersBtn.disabled = false;
+    followersBtn.innerHTML = '<span>👥</span><span>Scan Followers</span>';
+  }
+  
+  if (followingBtn) {
+    followingBtn.disabled = false;
+    followingBtn.innerHTML = '<span>🔗</span><span>Scan Following</span>';
   }
 
   const statusDot = document.getElementById('scanStatusDot');
@@ -324,42 +350,69 @@ function resetScanUI(success = false) {
 }
 
 function loadStats() {
+  if (!currentUser) {
+    document.getElementById('totalFollowers').textContent = '0';
+    document.getElementById('totalFollowing').textContent = '0';
+    document.getElementById('newFollowersCount').textContent = '0';
+    document.getElementById('unfollowersCount').textContent = '0';
+    document.getElementById('lastCheck').textContent = 'No account selected';
+    return;
+  }
+
   chrome.storage.local.get(['users'], (result) => {
     const users = result.users || {};
     const userData = users[currentUser] || {};
     
     const totalFollowers = userData.followers?.length || 0;
+    const totalFollowing = userData.following?.length || 0;
     const unfollowers = userData.unfollowers || [];
     const newFollowers = userData.newFollowers || [];
     
     document.getElementById('totalFollowers').textContent = totalFollowers.toLocaleString();
+    document.getElementById('totalFollowing').textContent = totalFollowing.toLocaleString();
     document.getElementById('newFollowersCount').textContent = '+' + newFollowers.length;
     document.getElementById('unfollowersCount').textContent = unfollowers.length;
     
-    const netGrowth = newFollowers.length - unfollowers.length;
-    const netGrowthEl = document.getElementById('netGrowth');
-    netGrowthEl.textContent = (netGrowth >= 0 ? '+' : '') + netGrowth;
-    netGrowthEl.style.color = netGrowth >= 0 ? '#10b981' : '#ef4444';
+    const lastFollowersCheck = userData.lastFollowersCheck;
+    const lastFollowingCheck = userData.lastFollowingCheck;
+    let lastCheckText = 'Never scanned';
     
-    document.getElementById('lastCheck').textContent = userData.lastCheck ? `Last: ${formatTimeAgo(userData.lastCheck)}` : 'Never scanned';
+    if (lastFollowersCheck && lastFollowingCheck) {
+      const latest = Math.max(lastFollowersCheck, lastFollowingCheck);
+      lastCheckText = `Last: ${formatTimeAgo(latest)}`;
+    } else if (lastFollowersCheck) {
+      lastCheckText = `Followers: ${formatTimeAgo(lastFollowersCheck)}`;
+    } else if (lastFollowingCheck) {
+      lastCheckText = `Following: ${formatTimeAgo(lastFollowingCheck)}`;
+    }
     
-    if (currentView === 'dashboard') renderRecentActivity(unfollowers, newFollowers);
-    else if (currentView === 'unfollowers') renderUnfollowersList(unfollowers);
-    else if (currentView === 'new') renderNewFollowersList(newFollowers);
+    document.getElementById('lastCheck').textContent = lastCheckText;
+    
+    if (currentView === 'dashboard') {
+      renderRecentActivity(unfollowers, newFollowers);
+    } else if (currentView === 'unfollowers') {
+      renderUnfollowersList(unfollowers);
+    } else if (currentView === 'new') {
+      renderNewFollowersList(newFollowers);
+    } else if (currentView === 'following') {
+      renderFollowingList(userData.following || []);
+    }
   });
 }
 
 function renderRecentActivity(unfollowers, newFollowers) {
   const container = document.getElementById('recentActivity');
   if (!unfollowers.length && !newFollowers.length) {
-    container.innerHTML = '<div class="info-box">No recent activity. Click "Scan Now" to check for changes.</div>';
+    container.innerHTML = '<div class="info-box">No recent activity. Click scan buttons to check for changes.</div>';
     return;
   }
   
   const recentActivity = [
     ...unfollowers.map(u => ({ ...u, type: 'unfollow' })),
     ...newFollowers.map(u => ({ ...u, type: 'new' }))
-  ].sort((a, b) => (b.unfollowedAt || b.timestamp || 0) - (a.unfollowedAt || a.timestamp || 0)).slice(0, 5);
+  ].sort((a, b) => 
+    (b.unfollowedAt || b.timestamp || 0) - (a.unfollowedAt || a.timestamp || 0)
+  ).slice(0, 5);
 
   let html = '<h3 style="font-size: 13px; margin: 16px 0 12px 0; color: rgba(255,255,255,0.7);">Recent Activity</h3><div class="user-list">';
   recentActivity.forEach(user => html += renderUserCard(user, user.type));
@@ -395,34 +448,100 @@ function renderNewFollowersList(newFollowers) {
   container.innerHTML = html;
 }
 
+function renderFollowingList(following) {
+  const container = document.getElementById('followingList');
+  if (!following.length) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🔗</div><div class="empty-state-title">No following data</div><div class="empty-state-text">Click "Scan Following" to load data</div></div>';
+    return;
+  }
+  
+  const followsBackCount = following.filter(u => u.followsBack).length;
+  const notFollowingBackCount = following.length - followsBackCount;
+  
+  let html = `
+    <div style="margin-bottom: 12px; font-size: 13px; color: rgba(255,255,255,0.7);">
+      Following (${following.length}) • 
+      <span style="color: #a78bfa;">${followsBackCount} mutual</span> • 
+      <span style="color: rgba(255,255,255,0.5);">${notFollowingBackCount} not following back</span>
+    </div>
+    <div class="user-list">`;
+  
+  const sorted = [...following].sort((a, b) => {
+    if (a.followsBack === b.followsBack) return 0;
+    return a.followsBack ? -1 : 1;
+  });
+  
+  sorted.forEach(user => html += renderUserCard(user, 'following'));
+  html += '</div>';
+  container.innerHTML = html;
+}
+
 function renderUserCard(user, type) {
   const isUnfollow = type === 'unfollow';
-  const bgColor = isUnfollow ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)';
-  const borderColor = isUnfollow ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)';
-  const avatarColor = isUnfollow ? 'linear-gradient(135deg, #ef4444, #dc2626)' : 'linear-gradient(135deg, #10b981, #059669)';
-  const status = isUnfollow ? 'Unfollowed' : 'New Follower';
-  const statusColor = isUnfollow ? '#ef4444' : '#10b981';
+  const isNew = type === 'new';
+  const isFollowing = type === 'following';
+  
+  let bgColor, borderColor, avatarColor, status, statusColor;
+  
+  if (isUnfollow) {
+    bgColor = 'rgba(239, 68, 68, 0.1)';
+    borderColor = 'rgba(239, 68, 68, 0.3)';
+    avatarColor = 'linear-gradient(135deg, #ef4444, #dc2626)';
+    status = 'Unfollowed';
+    statusColor = '#ef4444';
+  } else if (isNew) {
+    bgColor = 'rgba(16, 185, 129, 0.1)';
+    borderColor = 'rgba(16, 185, 129, 0.3)';
+    avatarColor = 'linear-gradient(135deg, #10b981, #059669)';
+    status = 'New Follower';
+    statusColor = '#10b981';
+  } else if (isFollowing) {
+    if (user.followsBack) {
+      bgColor = 'rgba(139, 92, 246, 0.1)';
+      borderColor = 'rgba(139, 92, 246, 0.3)';
+      avatarColor = 'linear-gradient(135deg, #8b5cf6, #7c3aed)';
+      status = 'Mutual';
+      statusColor = '#a78bfa';
+    } else {
+      bgColor = 'rgba(255,255,255,0.05)';
+      borderColor = 'rgba(255,255,255,0.1)';
+      avatarColor = 'linear-gradient(135deg, #6b7280, #4b5563)';
+      status = 'Not following back';
+      statusColor = 'rgba(255,255,255,0.5)';
+    }
+  } else {
+    bgColor = 'rgba(255,255,255,0.05)';
+    borderColor = 'rgba(255,255,255,0.1)';
+    avatarColor = 'linear-gradient(135deg, #3b82f6, #2563eb)';
+    status = '';
+    statusColor = '#60a5fa';
+  }
+  
+  const followsBackBadge = (isFollowing && user.followsBack) ? 
+    '<span class="follows-back-badge">⟷ Mutual</span>' : '';
+  
+  const timeAgo = user.unfollowedAt || user.timestamp ? 
+    `<div style="font-size: 11px; color: rgba(255,255,255,0.5);">${formatTimeAgo(user.unfollowedAt || user.timestamp)}</div>` : '';
   
   return `
     <div class="user-card" style="background: ${bgColor}; border-color: ${borderColor};">
       <div class="user-info">
         <div class="user-avatar" style="background: ${avatarColor};">${user.name.charAt(0).toUpperCase()}</div>
         <div class="user-details">
-          <div class="user-name">${escapeHtml(user.name)}</div>
-          <div class="user-username"><span style="color: rgba(255,255,255,0.6);">@${escapeHtml(user.username)}</span></div>
+          <div class="user-name">${escapeHtml(user.name)}${followsBackBadge}</div>
+          <div class="user-username">@${escapeHtml(user.username)}</div>
         </div>
       </div>
       <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px;">
-        <div style="font-size: 11px; font-weight: 500; color: ${statusColor};">${status}</div>
-        <div style="font-size: 11px; color: rgba(255,255,255,0.5);">${formatTimeAgo(user.unfollowedAt || user.timestamp)}</div>
-        <div style="display: flex; gap: 4px;">
-          <button class="action-btn action-btn-current" data-username="${user.username}" title="Open in current tab" style="padding: 4px 6px; border: none; background: rgba(255,255,255,0.1); color: white; border-radius: 4px; font-size: 11px; cursor: pointer; transition: all 0.2s;">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18"/></svg>
-          </button>
-          <button class="action-btn action-btn-new" data-username="${user.username}" title="Open in new tab" style="padding: 4px 6px; border: none; background: rgba(59, 130, 246, 0.3); color: white; border-radius: 4px; font-size: 11px; cursor: pointer; transition: all 0.2s;">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-          </button>
-        </div>
+        ${status ? `<div style="font-size: 11px; font-weight: 500; color: ${statusColor};">${status}</div>` : ''}
+        ${timeAgo}
+        <button class="action-btn" data-username="${user.username}" title="Open profile">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+            <polyline points="15 3 21 3 21 9"/>
+            <line x1="10" y1="14" x2="21" y2="3"/>
+          </svg>
+        </button>
       </div>
     </div>
   `;
@@ -459,7 +578,9 @@ function getStorageData(keys) {
 function sendMessage(message) {
   return new Promise((resolve, reject) => {
     chrome.runtime.sendMessage(message, response => {
-      chrome.runtime.lastError ? reject(new Error(chrome.runtime.lastError.message)) : resolve(response);
+      chrome.runtime.lastError ? 
+        reject(new Error(chrome.runtime.lastError.message)) : 
+        resolve(response);
     });
   });
 }
@@ -478,7 +599,24 @@ function showNotification(message, type = 'info') {
   
   const toast = document.createElement('div');
   toast.id = 'notificationToast';
-  toast.style.cssText = `position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: ${color.bg}; color: white; padding: 12px 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 999999; font-size: 13px; font-weight: 500; border: 2px solid ${color.border}; animation: slideUp 0.3s ease; max-width: 320px; text-align: center;`;
+  toast.style.cssText = `
+    position: fixed; 
+    bottom: 20px; 
+    left: 50%; 
+    transform: translateX(-50%); 
+    background: ${color.bg}; 
+    color: white; 
+    padding: 12px 20px; 
+    border-radius: 8px; 
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3); 
+    z-index: 999999; 
+    font-size: 13px; 
+    font-weight: 500; 
+    border: 2px solid ${color.border}; 
+    animation: slideUp 0.3s ease; 
+    max-width: 320px; 
+    text-align: center;
+  `;
   toast.textContent = message;
   
   const style = document.createElement('style');
@@ -497,12 +635,34 @@ function showQuickToast(message, type = 'info') {
   const existing = document.getElementById('quickToast');
   if (existing) existing.remove();
   
-  const colors = { success: { bg: 'rgba(16, 185, 129, 0.95)', icon: '✓' }, error: { bg: 'rgba(239, 68, 68, 0.95)', icon: '✕' }, warning: { bg: 'rgba(245, 158, 11, 0.95)', icon: '⚠' }, info: { bg: 'rgba(59, 130, 246, 0.95)', icon: '↗' } };
+  const colors = { 
+    success: { bg: 'rgba(16, 185, 129, 0.95)', icon: '✓' }, 
+    error: { bg: 'rgba(239, 68, 68, 0.95)', icon: '✕' }, 
+    warning: { bg: 'rgba(245, 158, 11, 0.95)', icon: '⚠' }, 
+    info: { bg: 'rgba(59, 130, 246, 0.95)', icon: '↗' } 
+  };
   const color = colors[type] || colors.info;
   
   const toast = document.createElement('div');
   toast.id = 'quickToast';
-  toast.style.cssText = `position: fixed; top: 70px; right: 20px; background: ${color.bg}; color: white; padding: 8px 14px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); z-index: 999999; font-size: 12px; font-weight: 500; animation: slideInRight 0.2s ease; display: flex; align-items: center; gap: 6px; backdrop-filter: blur(10px);`;
+  toast.style.cssText = `
+    position: fixed; 
+    top: 70px; 
+    right: 20px; 
+    background: ${color.bg}; 
+    color: white; 
+    padding: 8px 14px; 
+    border-radius: 6px; 
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2); 
+    z-index: 999999; 
+    font-size: 12px; 
+    font-weight: 500; 
+    animation: slideInRight 0.2s ease; 
+    display: flex; 
+    align-items: center; 
+    gap: 6px; 
+    backdrop-filter: blur(10px);
+  `;
   toast.innerHTML = `<span style="font-size: 14px;">${color.icon}</span><span>${message}</span>`;
   
   const style = document.createElement('style');
@@ -523,7 +683,8 @@ chrome.runtime.onMessage.addListener((request) => {
     loadUserData().then(() => {
       loadStats();
       resetScanUI(true);
-      showNotification(`Scan completed for @${request.username || currentUser}!`, 'success');
+      const scanType = request.scanType || 'data';
+      showNotification(`Scan completed for ${scanType}!`, 'success');
     });
   }
   if (request.action === 'scanError') {
@@ -533,7 +694,14 @@ chrome.runtime.onMessage.addListener((request) => {
   if (request.action === 'scanProgress') {
     const statusText = document.getElementById('scanStatusText');
     const progressFill = document.getElementById('scanProgressFill');
-    if (statusText && request.progress) statusText.textContent = `Scanning... ${request.progress}%`;
-    if (progressFill && request.progress) progressFill.style.width = `${request.progress}%`;
+    if (statusText && request.progress) {
+      chrome.storage.local.get(['currentScanType'], (result) => {
+        const scanType = result.currentScanType || 'users';
+        statusText.textContent = `Scanning ${scanType}... ${request.progress}%`;
+      });
+    }
+    if (progressFill && request.progress) {
+      progressFill.style.width = `${request.progress}%`;
+    }
   }
 });
