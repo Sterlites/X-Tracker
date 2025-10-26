@@ -13,7 +13,7 @@
 > **Free X tracker for small X accounts - Track who unfollows you on X (formerly Twitter) without using the API. Monitor your followers, following, and social media engagement in real-time.**
 
 <div align="center">
-  <img src="https://cdn-icons-png.flaticon.com/128/1384/1384066.png" alt="X Icon" width="80" height="80">
+<img src="icons/icon16.png" alt="X Icon" width="80" height="80">
   <h2>X Tracker</h2>
   <p><em>Never miss who's unfollowed you again | Free for Small Accounts</em></p>
 </div>
