@@ -13,7 +13,7 @@
 > **Free X tracker for small X accounts - Track who unfollows you on X (formerly Twitter) without using the API. Monitor your followers, following, and social media engagement in real-time.**
 
 <div align="center">
-  <img src="https://upload.wikimedia.org/wikipedia/commons/3/3c/X_logo_2023_Variant_1.svg" alt="X Icon" width="80" height="80">
+  <img src="https://cdn-icons-png.flaticon.com/128/1384/1384066.png" alt="X Icon" width="80" height="80">
   <h2>X Tracker</h2>
   <p><em>Never miss who's unfollowed you again | Free for Small Accounts</em></p>
 </div>
@@ -141,7 +141,7 @@
 <div align="center">
 <table>
   <tr>
-    <td align="center"><img src="https://cdn-icons-png.flaticon.com/128/929/929404.png" alt="Followers" width="32" height="32"> Followers</td>
+    <td align="center"><img src="https://cdn-icons-png.flaticon.com/128/1076/1076098.png" alt="Followers" width="32" height="32"> Followers</td>
     <td align="center"><img src="https://cdn-icons-png.flaticon.com/128/219/219975.png" alt="Following" width="32" height="32"> Following</td>
     <td align="center"><img src="https://cdn-icons-png.flaticon.com/128/686/686267.png" alt="Unfollowers" width="32" height="32"> Unfollowers</td>
     <td align="center"><img src="https://cdn-icons-png.flaticon.com/128/686/686362.png" alt="New" width="32" height="32"> New</td>
