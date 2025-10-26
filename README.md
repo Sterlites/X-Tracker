@@ -1,152 +1,425 @@
-// ============================================
-// FILE: README.md
-// ============================================
-# X Unfollow Tracker - Browser Extension
+# X Tracker - Unfollow & Social Media Monitoring Extension 🔍
 
-Track who unfollows you on X (formerly Twitter) without using the API.
+<div align="center">
 
-## ⚠️ Important Disclaimers
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-4285F4?style=flat&logo=google-chrome&logoColor=white)](https://chrome.google.com/webstore)
+[![X (Twitter)](https://img.shields.io/badge/X_(Twitter)-1DA1F2?style=flat&logo=twitter&logoColor=white)](https://x.com)
+[![Status](https://img.shields.io/badge/Status-Active-brightgreen)](https://github.com)
 
-**Legal Warning:**
-- This extension scrapes X's website, which may violate their Terms of Service
-- Your account could be suspended if detected
-- Use at your own risk for personal use only
-- We are not responsible for any consequences
+</div>
 
-**Technical Limitations:**
-- Requires manual "Scan Now" clicks (cannot run automatically)
-- You must be logged into X in your browser
-- Large follower counts (10k+) may take several minutes to scan
-- X's HTML structure may change, breaking the scraper
-- Rate limits may apply if you scan too frequently
+> **Track who unfollows you on X (formerly Twitter) without using the API. Monitor your followers, following, and social media engagement in real-time.**
+
+<div align="center">
+  <img src="https://img.icons8.com/fluency/96/000000/twitter.png" alt="X Icon" width="80" height="80">
+  <h2>X Tracker</h2>
+  <p><em>Never miss who's unfollowed you again</em></p>
+</div>
+
+---
+
+## 🌟 Features
+
+<div align="center">
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="https://img.icons8.com/color/48/000000/followers.png" alt="Followers Tracking"/>
+      <h3>Followers Tracking</h3>
+      <p>Monitor who follows and unfollows you</p>
+    </td>
+    <td align="center" width="50%">
+      <img src="https://img.icons8.com/color/48/000000/twitter.png" alt="Multi-Account"/>
+      <h3>Multi-Account</h3>
+      <p>Track multiple X accounts simultaneously</p>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="https://img.icons8.com/color/48/000000/statistics.png" alt="Statistics"/>
+      <h3>Statistics</h3>
+      <p>Detailed analytics and insights</p>
+    </td>
+    <td align="center" width="50%">
+      <img src="https://img.icons8.com/color/48/000000/database-locked.png" alt="Privacy"/>
+      <h3>Privacy First</h3>
+      <p>All data stored locally, never leaves your device</p>
+    </td>
+  </tr>
+</table>
+</div>
+
+---
+
+## 📸 Screenshots
+
+<div align="center">
+  
+### Dashboard View
+<img src="https://github.com/user-attachments/assets/55441a6a-962a-480d-87a3-75006219504d" alt="Dashboard View" width="450">
+
+### Unfollowers View
+<img src="https://github.com/user-attachments/assets/18c8b561-1029-42a2-987f-019f5209442d" alt="Unfollowers View" width="450">
+
+### Multi-Account Support
+<img src="https://github.com/user-attachments/assets/0e507063-8362-4483-9c38-01504a761102" alt="Multi-Account View" width="450">
+
+</div>
+
+---
 
 ## 🚀 Installation
 
-1. Download all the extension files
-2. Create a folder structure:
-   ```
-   x-unfollow-tracker/
-   ├── manifest.json
-   ├── background.js
-   ├── scraper.js
-   ├── popup.html
-   ├── popup.js
-   └── icons/
-       ├── icon16.png
-       ├── icon48.png
-       └── icon128.png
-   ```
+### Method 1: Manual Installation (Recommended)
 
-3. Create simple icon files (or use placeholders):
-   - 16x16px, 48x48px, and 128x128px PNG images
-   - Can be a simple blue circle or X logo
+1. **Clone or Download**
+   ```bash
+   git clone https://github.com/Sterlites/X-Tracker.git
+   ```
+   Or [download as ZIP](https://github.com/Sterlites/X-Tracker/archive/main.zip)
 
-4. Load the extension in Chrome:
-   - Open `chrome://extensions/`
-   - Enable "Developer mode" (top right)
+2. **Open Chrome Extensions**
+   - Go to `chrome://extensions/`
+   - Toggle "Developer mode" ON (top right)
+
+3. **Load the Extension**
    - Click "Load unpacked"
-   - Select the `x-unfollow-tracker` folder
+   - Select the folder where you extracted the files
 
-5. **IMPORTANT:** Edit `background.js` line 43:
-   - Change `YOUR_USERNAME` to your actual X username
-   - Example: `https://x.com/elonmusk/followers`
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/7561a863-43e1-49c5-a9a4-14f0939b0e30" alt="Installation Steps" width="600">
+</div>
 
-## 📖 How to Use
+### Method 2: Package Installation
 
-1. Make sure you're logged into X (twitter.com or x.com)
-2. Click the extension icon in your browser toolbar
-3. Click "Scan Now" button
-4. Wait while it opens your followers page and scans
-5. The tab will close automatically when done
-6. View your stats in the popup
+1. Clone the repository
+2. Navigate to the extension directory
+3. Zip all files (without the parent folder)
+4. Go to `chrome://extensions/`
+5. Enable "Developer mode"
+6. Click "Pack extension" and select the unzipped folder
+7. Install the generated `.crx` file
 
-## 🔍 How It Works
+---
 
-1. **First Scan:** Creates a baseline snapshot of all your followers
-2. **Subsequent Scans:** Compares new snapshot with previous one
-3. **Detection:** 
-   - Users in old list but not new = Unfollowers
-   - Users in new list but not old = New Followers
-4. **Storage:** All data stored locally in your browser (no cloud/server)
+## 📋 Requirements
 
-## 📊 Features
+- [Google Chrome](https://www.google.com/chrome/) or Chromium-based browser (Brave, Edge, Opera)
+- Active X (Twitter) account
+- Minimum Chrome version: 88+
+- Stable internet connection
 
-- **Dashboard:** Overview of total followers, unfollowers, new followers, and net growth
-- **Unfollowers List:** See who unfollowed you with timestamps
-- **New Followers List:** See who recently followed you
-- **Local Storage:** All data stays on your device
-- **No API Required:** Works by scraping the website
+---
 
-## 🛠️ Troubleshooting
+## 🎯 How to Use
 
-**Extension not working:**
-- Make sure you're logged into X
-- Update YOUR_USERNAME in background.js
-- Check browser console for errors (F12 → Console tab)
+### Initial Setup
+1. **Login to X**: Ensure you're logged into X in your browser
+2. **Click Extension Icon**: Click the extension icon in your toolbar
+3. **Add Account**: Use the "+" button to add the account you want to track
+4. **Enter Username**: Type your X username (without @ symbol)
 
-**Scan takes too long:**
-- Normal for large follower counts (1000+ can take 5-10 minutes)
-- X loads followers in batches as you scroll
-- Don't close the scanning tab manually
+### Scanning Process
+1. **Select Account**: Choose the account from the dropdown
+2. **Start Scanning**: Click either:
+   - 🧑‍🤝‍🧑 **"Scan Followers"** - Track who follows you
+   - 🔗 **"Scan Following"** - Track who you follow
+3. **Wait**: A new tab will open and scan automatically
+4. **Results**: View your dashboard after scanning completes
 
-**Missing followers:**
-- X may not load all followers if you have too many
-- Try scanning at different times
-- Private/protected accounts may not appear
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/7def2596-3303-44e3-949d-7965b5d5c4c5" alt="How to Use" width="600">
+</div>
 
-**Data not saving:**
-- Check if browser has storage permissions
-- Try reloading the extension
+---
+
+## 📊 Dashboard Features
+
+### Main Dashboard
+<div align="center">
+<table>
+  <tr>
+    <td align="center"><img src="https://img.icons8.com/emoji/32/000000/busts-in-silhouette.png" alt="Followers"/> Followers</td>
+    <td align="center"><img src="https://img.icons8.com/emoji/32/000000/linked-paperclips.png" alt="Following"/> Following</td>
+    <td align="center"><img src="https://img.icons8.com/emoji/32/000000/negative-circled-cross.png" alt="Unfollowers"/> Unfollowers</td>
+    <td align="center"><img src="https://img.icons8.com/emoji/32/000000/plus.png" alt="New"/> New</td>
+  </tr>
+  <tr>
+    <td align="center"><code>Current follower count</code></td>
+    <td align="center"><code>Accounts you follow</code></td>
+    <td align="center"><code>Recent unfollowers</code></td>
+    <td align="center"><code>New followers</code></td>
+  </tr>
+</table>
+</div>
+
+### Navigation Tabs
+- **Dashboard**: Overview of all metrics
+- **Unfollowers**: List of accounts that recently unfollowed you
+- **New**: Recently acquired followers
+- **Following**: Accounts you currently follow
+
+---
+
+## ⚡ Performance Guidelines
+
+| Follower Count | Estimated Scan Time | Notes |
+|----------------|-------------------|-------|
+| < 1,000        | 1-5 minutes       | ✅ Smooth performance |
+| 1,000 - 5,000  | 5-15 minutes      | ⏳ Be patient |
+| 5,000 - 10,000 | 15-30 minutes     | ⏱️ May take time |
+| 10,000+        | 30+ minutes       | ⚠️ Large accounts may timeout |
+
+> 💡 **Pro Tip**: For best performance, scan during off-peak hours and ensure a stable internet connection.
+
+---
+
+## 🔧 Advanced Features
+
+### Multi-Account Management
+- Add and manage multiple X accounts
+- Switch between accounts instantly
+- Independent tracking for each account
+- Dedicated statistics for each profile
+
+### Tracking Capabilities
+- **Followers Monitoring**: Track who follows you
+- **Following Monitoring**: Monitor accounts you follow
+- **Historical Data**: View changes over time
+- **Real-time Updates**: Get the latest information
+
+### Privacy Controls
+- **Local Storage Only**: No data leaves your device
+- **Complete Privacy**: No external servers involved
+- **Easy Cleanup**: Remove stored data with one click
+- **Secure Storage**: Data stored securely in browser
+
+---
+
+## ⚠️ Important Disclaimers
+
+### Usage Warning
+> ⚠️ **CRITICAL**: This extension scrapes X's website, which may violate their Terms of Service. Your account could be suspended if detected. Use at your own risk for personal use only.
+
+### Technical Limitations
+- **Scraping-Based**: Uses web scraping instead of official API
+- **Rate Limiting**: X may apply rate limits to prevent scraping
+- **HTML Changes**: X's interface changes may break functionality
+- **Large Accounts**: Very large accounts may experience timeouts
+- **Network Issues**: Poor connection may interrupt scans
+
+### Recommended Usage
+- **Frequency**: Limit scans to once per hour
+- **Active Session**: Must be logged into X in browser
+- **Stability**: Use during stable network conditions
+- **Account Size**: Best for accounts under 100k followers
+
+---
 
 ## 🔒 Privacy & Security
 
-- ✅ All data stored locally in your browser
-- ✅ No external servers or cloud storage
-- ✅ No data sent to third parties
-- ✅ Open source - you can audit the code
-- ⚠️ Data is not encrypted in browser storage
-- ⚠️ Anyone with access to your computer can see the data
+### Data Handling
+<div align="center">
+<table>
+  <tr>
+    <th>Aspect</th>
+    <th>Details</th>
+  </tr>
+  <tr>
+    <td>Storage Location</td>
+    <td>Local browser storage only</td>
+  </tr>
+  <tr>
+    <td>Data Transmission</td>
+    <td>No external communication</td>
+  </tr>
+  <tr>
+    <td>Encryption</td>
+    <td>Browser's standard encryption</td>
+  </tr>
+    <tr>
+    <td>Access</td>
+    <td>Extension only access</td>
+  </tr>
+</table>
+</div>
 
-## ⚡ Performance Tips
+### Security Features
+- ✅ **No External Servers**: All data stays on your device
+- ✅ **No Data Sharing**: Never sends data to third parties
+- ✅ **Open Source**: Code available for review
+- ⚠️ **Local Access**: Anyone with computer access can view data
+- ❌ **No Encryption**: Browser storage is standard (not encrypted)
 
-- Don't scan more than once per hour (respect X's servers)
-- For 1000+ followers, allow 5-10 minutes per scan
-- Close other X tabs before scanning
-- Use a stable internet connection
+---
 
-## 🐛 Known Issues
+## 🛠️ Troubleshooting
 
-- May miss some followers if X doesn't load them all
-- Scanning large accounts (50k+ followers) may timeout
-- X's HTML structure changes can break the scraper
-- Protected/private accounts may not be detected correctly
+### Common Issues
 
-## 🔧 Updating the Scraper
+#### Extension Not Working
+**Problem**: The extension doesn't respond or shows errors
+**Solution**:
+- Check if you're logged into X in your browser
+- Verify your username is correctly added to the extension
+- Open browser console (F12 → Console) to check for errors
+- Reload the extension from chrome://extensions/
 
-If X changes their HTML structure and the scraper breaks:
+#### Scan Takes Too Long
+**Problem**: Scanning process seems stuck or very slow
+**Solution**:
+- This is normal for large follower counts (1000+ can take 5-20 minutes)
+- X loads followers in batches as it scrolls down the page
+- Don't close the scanning tab manually - it will close automatically
+- Try scanning during off-peak hours when X's servers are less busy
 
-1. Open `scraper.js`
-2. Update the CSS selectors in `extractFollowers()` function:
-   - Look for `data-testid="UserCell"` - this is the follower container
-   - Find the username link selector
-   - Find the display name selector
-3. Test with small account first
+#### Missing Followers
+**Problem**: Some followers don't appear in the results
+**Solution**:
+- X may not load all followers for very large accounts
+- Try scanning at different times of day
+- Private/protected accounts may not appear in public follower lists
+- Some accounts might be temporarily invisible due to X's systems
 
-## 📝 License
+#### Data Not Saving
+**Problem**: Stats reset after browser restart
+**Solution**:
+- Check if browser has storage permissions enabled
+- Try reloading the extension from chrome://extensions/
+- Clear browser cache if storage quota is exceeded
+- Check for browser storage errors in console (F12)
 
-MIT License - Use at your own risk
+### Error Messages
+- **"No active tab"**: Check that you have an active browser tab open
+- **"Scan failed"**: Network issue or X server problem occurred
+- **"Timeout"**: Account has too many followers or network is slow
+- **"Permission denied"**: Extension may need updated permissions
 
-## ⚖️ Disclaimer
+---
 
-This tool is for educational purposes. The developers are not responsible for:
-- Account suspensions or bans
-- Data loss or inaccuracy
-- Violations of X's Terms of Service
-- Any other consequences of using this extension
+## 📦 File Structure
 
-Use responsibly and at your own risk.>
-      <button id="scanBtn" class="scan-btn">
-        <span>🔄</span>
-        <span>Scan Now</span>
-      </button>
-    </div
+```
+X-Tracker/
+├── manifest.json          # Extension configuration and metadata
+├── background.js          # Background service for scanning operations
+├── popup.html             # User interface for the extension popup
+├── popup.js               # Frontend logic and UI interactions
+├── scraper.js             # Core scraping functionality
+├── README.md              # This documentation file
+├── icons/
+│   ├── icon16.png         # Small icon for browser extensions
+│   ├── icon48.png         # Medium icon for browser extensions
+│   └── icon128.png        # Large icon for browser extensions
+└── screenshots/
+    └── preview.png        # Extension preview image
+```
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! Here's how you can help:
+
+### Development Setup
+1. Fork the repository from [Sterlites GitHub](https://github.com/Sterlites)
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Commit your changes (`git commit -m 'Add some amazing feature'`)
+5. Push to the branch (`git push origin feature/amazing-feature`)
+6. Open a Pull Request
+
+### Areas for Improvement
+- [ ] Better error handling and user feedback
+- [ ] Support for dark/light mode preferences
+- [ ] Notification system for new unfollowers
+- [ ] Export functionality for data analytics
+- [ ] Support for other browsers (Firefox, Safari)
+
+---
+
+## 📞 Support
+
+### Need Help?
+- 🐛 **Bug Reports**: Open an issue on [GitHub Issues](https://github.com/Sterlites/X-Tracker/issues)
+- 💡 **Feature Requests**: Create a feature request in the issues section
+- 📚 **Documentation**: Check this README for detailed instructions
+- 💬 **Community**: Join discussions for help from other users
+
+### Contact
+- 🌐 Website: [www.sterlites.com](https://www.sterlites.com)
+- 📧 Email: [contact@sterlites.com](mailto:contact@sterlites.com)
+- 🐣 X (Twitter): [@Rohit_Dwivedi](https://x.com/Rohit_Dwivedi)
+- 💬 GitHub: [Sterlites Organization](https://github.com/Sterlites)
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+```
+MIT License
+
+Copyright (c) 2025 Sterlites
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+---
+
+## 🙏 Acknowledgments
+
+- **X (Twitter)** for providing the platform that inspired this tool
+- **Chrome Extension APIs** for enabling powerful browser extensions
+- **Open Source Community** for inspiration and best practices
+- **Beta Testers** for invaluable feedback and testing
+- **Icons8** for the amazing icons used in this project
+- **[Sterlites](https://www.sterlites.com)** for the development and maintenance of this project
+- **[@Rohit_Dwivedi](https://x.com/Rohit_Dwivedi)** for the initiative and continued support
+- **All Contributors** who have helped make this project better
+
+---
+
+<div align="center">
+
+### 💖 Like this extension?
+
+If you find X Tracker helpful, please give it a star! ⭐
+
+[![GitHub stars](https://img.shields.io/github/stars/Sterlites/X-Tracker?style=social)](https://github.com/Sterlites/X-Tracker/stargazers)
+
+**Made with ❤️ by [Sterlites](https://www.sterlites.com) for X (Twitter) users worldwide.**
+
+</div>
+
+<div align="center">
+
+### 🐛 Issues?
+[![GitHub issues](https://img.shields.io/github/issues/Sterlites/X-Tracker)](https://github.com/Sterlites/X-Tracker/issues)
+[![GitHub issues closed](https://img.shields.io/github/issues-closed/Sterlites/X-Tracker)](https://github.com/Sterlites/X-Tracker/issues)
+
+</div>
+
+---
+
+<div align="center">
+  <sub>Built with ❤️ by <a href="https://www.sterlites.com">Sterlites</a> | Follow us on X: <a href="https://x.com/Rohit_Dwivedi">@Rohit_Dwivedi</a> | For X (Twitter) users everywhere</sub>
+</div>
