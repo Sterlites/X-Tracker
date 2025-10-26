@@ -6,15 +6,16 @@
 [![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-4285F4?style=flat&logo=google-chrome&logoColor=white)](https://chrome.google.com/webstore)
 [![X (Twitter)](https://img.shields.io/badge/X_(Twitter)-1DA1F2?style=flat&logo=twitter&logoColor=white)](https://x.com)
 [![Status](https://img.shields.io/badge/Status-Active-brightgreen)](https://github.com)
+[![Free](https://img.shields.io/badge/Price-Free-brightgreen)](https://github.com)
 
 </div>
 
-> **Track who unfollows you on X (formerly Twitter) without using the API. Monitor your followers, following, and social media engagement in real-time.**
+> **Free X tracker for small X accounts - Track who unfollows you on X (formerly Twitter) without using the API. Monitor your followers, following, and social media engagement in real-time.**
 
 <div align="center">
-  <img src="https://img.icons8.com/fluency/96/000000/twitter.png" alt="X Icon" width="80" height="80">
+  <img src="https://upload.wikimedia.org/wikipedia/commons/3/3c/X_logo_2023_Variant_1.svg" alt="X Icon" width="80" height="80">
   <h2>X Tracker</h2>
-  <p><em>Never miss who's unfollowed you again</em></p>
+  <p><em>Never miss who's unfollowed you again | Free for Small Accounts</em></p>
 </div>
 
 ---
@@ -25,24 +26,24 @@
 <table>
   <tr>
     <td align="center" width="50%">
-      <img src="https://img.icons8.com/color/48/000000/followers.png" alt="Followers Tracking"/>
+      <img src="https://cdn-icons-png.flaticon.com/128/733/733579.png" alt="Followers Tracking" width="48" height="48">
       <h3>Followers Tracking</h3>
       <p>Monitor who follows and unfollows you</p>
     </td>
     <td align="center" width="50%">
-      <img src="https://img.icons8.com/color/48/000000/twitter.png" alt="Multi-Account"/>
+      <img src="https://cdn-icons-png.flaticon.com/128/25/25634.png" alt="Multi-Account" width="48" height="48">
       <h3>Multi-Account</h3>
       <p>Track multiple X accounts simultaneously</p>
     </td>
   </tr>
   <tr>
     <td align="center" width="50%">
-      <img src="https://img.icons8.com/color/48/000000/statistics.png" alt="Statistics"/>
+      <img src="https://cdn-icons-png.flaticon.com/128/1642/1642513.png" alt="Statistics" width="48" height="48">
       <h3>Statistics</h3>
       <p>Detailed analytics and insights</p>
     </td>
     <td align="center" width="50%">
-      <img src="https://img.icons8.com/color/48/000000/database-locked.png" alt="Privacy"/>
+      <img src="https://cdn-icons-png.flaticon.com/128/3076/3076083.png" alt="Privacy" width="48" height="48">
       <h3>Privacy First</h3>
       <p>All data stored locally, never leaves your device</p>
     </td>
@@ -140,10 +141,10 @@
 <div align="center">
 <table>
   <tr>
-    <td align="center"><img src="https://img.icons8.com/emoji/32/000000/busts-in-silhouette.png" alt="Followers"/> Followers</td>
-    <td align="center"><img src="https://img.icons8.com/emoji/32/000000/linked-paperclips.png" alt="Following"/> Following</td>
-    <td align="center"><img src="https://img.icons8.com/emoji/32/000000/negative-circled-cross.png" alt="Unfollowers"/> Unfollowers</td>
-    <td align="center"><img src="https://img.icons8.com/emoji/32/000000/plus.png" alt="New"/> New</td>
+    <td align="center"><img src="https://cdn-icons-png.flaticon.com/128/929/929404.png" alt="Followers" width="32" height="32"> Followers</td>
+    <td align="center"><img src="https://cdn-icons-png.flaticon.com/128/219/219975.png" alt="Following" width="32" height="32"> Following</td>
+    <td align="center"><img src="https://cdn-icons-png.flaticon.com/128/686/686267.png" alt="Unfollowers" width="32" height="32"> Unfollowers</td>
+    <td align="center"><img src="https://cdn-icons-png.flaticon.com/128/686/686362.png" alt="New" width="32" height="32"> New</td>
   </tr>
   <tr>
     <td align="center"><code>Current follower count</code></td>
@@ -391,7 +392,7 @@ SOFTWARE.
 - **Chrome Extension APIs** for enabling powerful browser extensions
 - **Open Source Community** for inspiration and best practices
 - **Beta Testers** for invaluable feedback and testing
-- **Icons8** for the amazing icons used in this project
+- **Flaticon** for the amazing icons used in this project
 - **[Sterlites](https://www.sterlites.com)** for the development and maintenance of this project
 - **[@Rohit_Dwivedi](https://x.com/Rohit_Dwivedi)** for the initiative and continued support
 - **All Contributors** who have helped make this project better
@@ -406,8 +407,11 @@ If you find X Tracker helpful, please give it a star! ⭐
 
 [![GitHub stars](https://img.shields.io/github/stars/Sterlites/X-Tracker?style=social)](https://github.com/Sterlites/X-Tracker/stargazers)
 
-**Made with ❤️ by [Sterlites](https://www.sterlites.com) for X (Twitter) users worldwide.**
+</div>
 
+<div align="center">
+  <h3><b>Free X Tracker for Small Accounts</b></h3>
+  <p>Made with ❤️ by <a href="https://www.sterlites.com">Sterlites</a> | Follow us: <a href="https://x.com/Rohit_Dwivedi">@Rohit_Dwivedi</a> | For X (Twitter) users everywhere</p>
 </div>
 
 <div align="center">
@@ -416,10 +420,4 @@ If you find X Tracker helpful, please give it a star! ⭐
 [![GitHub issues](https://img.shields.io/github/issues/Sterlites/X-Tracker)](https://github.com/Sterlites/X-Tracker/issues)
 [![GitHub issues closed](https://img.shields.io/github/issues-closed/Sterlites/X-Tracker)](https://github.com/Sterlites/X-Tracker/issues)
 
-</div>
-
----
-
-<div align="center">
-  <sub>Built with ❤️ by <a href="https://www.sterlites.com">Sterlites</a> | Follow us on X: <a href="https://x.com/Rohit_Dwivedi">@Rohit_Dwivedi</a> | For X (Twitter) users everywhere</sub>
 </div>
