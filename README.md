@@ -48,6 +48,18 @@
       <p>All data stored locally, never leaves your device</p>
     </td>
   </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="https://cdn-icons-png.flaticon.com/128/2964/2964525.png" alt="Stuck Scan Prevention" width="48" height="48">
+      <h3>Stuck Scan Prevention</h3>
+      <p>Automatic detection and recovery from stuck scans</p>
+    </td>
+    <td align="center" width="50%">
+      <img src="https://cdn-icons-png.flaticon.com/128/3076/3076083.png" alt="Data Safety" width="48" height="48">
+      <h3>Data Safety</h3>
+      <p>Protects your existing data while stopping stuck scans</p>
+    </td>
+  </tr>
 </table>
 </div>
 
@@ -196,6 +208,13 @@
 - **Easy Cleanup**: Remove stored data with one click
 - **Secure Storage**: Data stored securely in browser
 
+### Stuck Scan Prevention
+- **Automatic Detection**: Scans running longer than 2 minutes are flagged as potentially stuck
+- **Force Stop Button**: Manual intervention option when scans get stuck
+- **Automatic Cleanup**: Stuck scans are cleared when the browser restarts
+- **Timeout Protection**: Scans automatically stop after 5 minutes to prevent infinite loops
+- **Data Preservation**: Existing data remains safe when stopping stuck scans
+
 ---
 
 ## ⚠️ Important Disclaimers
@@ -274,6 +293,15 @@
 - X loads followers in batches as it scrolls down the page
 - Don't close the scanning tab manually - it will close automatically
 - Try scanning during off-peak hours when X's servers are less busy
+
+#### Stuck Scans
+**Problem**: The scan appears stuck and doesn't complete, or shows "running" status even after closing the browser
+**Solution**:
+- **Automatic Detection**: The extension now automatically detects scans that have been running for more than 2 minutes and shows a "Force Stop" button
+- **Force Stop**: Click the "🔧 Force Stop" button to immediately stop a stuck scan
+- **Automatic Cleanup**: When you restart your browser, any stuck scans are automatically cleared
+- **Timeout Protection**: Scans automatically stop after 5 minutes if they're taking too long
+- **Data Safety**: Stopping a stuck scan will not delete your existing data
 
 #### Missing Followers
 **Problem**: Some followers don't appear in the results
