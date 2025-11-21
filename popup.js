@@ -1,1 +1,1602 @@
-let view='dashboard',usr=null,usrL=[],monIv=null,filterState={following:'all'},searchState={};document.addEventListener('DOMContentLoaded',()=>{loadUsr();setupEvt()});async function loadUsr(){const d=await getStore(['users','currentUser','userList','scanStatus','_scanStartTime']);usr=d.currentUser;usrL=d.userList||[];if(!usrL.length&&usr)usrL=[usr];if(usr&&!usrL.includes(usr))usrL.unshift(usr);await chrome.storage.local.set({userList:usrL});upDropdown();loadStats();if(d.scanStatus==='scanning'){const scanAge=Date.now()-(d._scanStartTime||0);if(scanAge>300000){await chrome.storage.local.set({scanStatus:'idle'});showNot('Stuck scan detected and cleared','warning');resetUI()}else if(scanAge>120000){const fsbtn=document.getElementById('forceStopBtn');if(fsbtn){fsbtn.style.display='block'}const sbtn=document.getElementById('stopScanBtn');if(sbtn){sbtn.style.display='none'}startMon()}else{startMon()}}}function upDropdown(){const dd=document.getElementById('currentUserDisplay'),mi=document.getElementById('userMenuItems');if(dd)dd.textContent=usr?`@${usr}`:'Select account';if(mi){mi.innerHTML='';chrome.storage.local.get(['users'],r=>{const us=r.users||{};usrL.forEach(u=>{const ud=us[u]||{},fc=ud.followers?.length||0,foc=ud.following?.length||0;let st='';if(fc>0)st+=`${fc} followers`;if(foc>0){if(st)st+=' • ';st+=`${foc} following`}if(!st)st='Not scanned';const it=document.createElement('div');it.className='user-menu-item'+(u===usr?' active':'');it.innerHTML=`<div class="user-menu-item-content"><span>@${u}</span><span class="user-stats">${st}</span></div><button class="remove-user-btn" data-username="${u}" onclick="event.stopPropagation()">Remove</button>`;it.addEventListener('click',e=>{if(!e.target.classList.contains('remove-user-btn'))switchUsr(u)});it.querySelector('.remove-user-btn').addEventListener('click',()=>rmUsr(u));mi.appendChild(it)})})}}function switchUsr(u){if(u===usr)return closeMnu();usr=u;chrome.storage.local.set({currentUser:u});upDropdown();closeMnu();loadStats();showNot(`Switched to @${u}`,'success')}async function rmUsr(u){if(usrL.length===1){showNot('Cannot remove last account','warning');return}if(!confirm(`Remove @${u}?`))return;usrL=usrL.filter(x=>x!==u);const d=await getStore(['users']);const us=d.users||{};delete us[u];await chrome.storage.local.set({users:us,userList:usrL});if(usr===u){usr=usrL[0];await chrome.storage.local.set({currentUser:usr})}upDropdown();loadStats();showNot(`Removed @${u}`,'success')}function setupEvt(){const sf=document.getElementById('scanFollowersBtn');if(sf)sf.addEventListener('click',()=>startScan('followers'));const so=document.getElementById('scanFollowingBtn');if(so)so.addEventListener('click',()=>startScan('following'));const ss=document.getElementById('stopScanBtn');if(ss)ss.addEventListener('click',stopScan);const fs=document.getElementById('forceStopBtn');if(fs)fs.addEventListener('click',forceStopScan);const ud=document.getElementById('userDropdown');if(ud)ud.addEventListener('click',e=>{e.stopPropagation();togMnu()});document.addEventListener('click',closeMnu);const ab=document.getElementById('addUserBtn');if(ab)ab.addEventListener('click',e=>{e.stopPropagation();promptAdd()});const eb=document.getElementById('exportBtn');if(eb)eb.addEventListener('click',exportData);document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',e=>switchView(e.target.dataset.view)));document.querySelectorAll('.stat-card[data-view]').forEach(c=>c.addEventListener('click',e=>switchView(e.currentTarget.dataset.view)));const ct=document.querySelector('.content');if(ct)ct.addEventListener('click',async e=>{const tg=e.target.closest('[data-username]');if(!tg)return;e.preventDefault();e.stopPropagation();const u=tg.dataset.username,url=`https://x.com/${u}`,[tab]=await chrome.tabs.query({active:true,currentWindow:true});if(tab?.id){chrome.tabs.update(tab.id,{url});showQuick('Opening...','info')}});['unfollowersSearch','newSearch','fansSearch','notFollowBackSearch','followingSearch'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('input',e=>handleSearch(id.replace('Search',''),e.target.value))});document.querySelectorAll('.filter-btn').forEach(b=>b.addEventListener('click',e=>{const f=e.target.dataset.filter;document.querySelectorAll('.filter-btn').forEach(x=>x.classList.remove('active'));e.target.classList.add('active');filterState.following=f;loadStats()}));const ua=document.getElementById('unfollowAllBtn');if(ua)ua.addEventListener('click',showUnfollowGuide)}function togMnu(){const m=document.getElementById('userMenu'),d=document.getElementById('userDropdown');if(m&&d){if(!m.classList.contains('open'))upDropdown();m.classList.toggle('open');d.classList.toggle('open')}}function closeMnu(){const m=document.getElementById('userMenu'),d=document.getElementById('userDropdown');if(m&&d){m.classList.remove('open');d.classList.remove('open')}}async function promptAdd(){const u=prompt('Enter X username:');if(!u)return;const cl=u.replace('@','').trim();if(!cl||!/^[a-zA-Z0-9_]{1,15}$/.test(cl)){showNot('Invalid username','error');return}if(usrL.includes(cl)){showNot('Already tracked','warning');switchUsr(cl);return}usrL.push(cl);await chrome.storage.local.set({userList:usrL,currentUser:cl});usr=cl;upDropdown();closeMnu();loadStats();showNot(`Added @${cl}`,'success')}function switchView(v){view=v;document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.view===v));document.getElementById('dashboardView').style.display=v==='dashboard'?'block':'none';document.getElementById('unfollowersView').style.display=v==='unfollowers'?'block':'none';document.getElementById('newFollowersView').style.display=v==='new'?'block':'none';document.getElementById('fansView').style.display=v==='fans'?'block':'none';document.getElementById('notFollowingBackView').style.display=v==='notfollowback'?'block':'none';document.getElementById('followingView').style.display=v==='following'?'block':'none';document.getElementById('insightsView').style.display=v==='insights'?'block':'none';if(v!=='dashboard')loadStats()}async function startScan(typ){if(!usr){showNot('Add account first','warning');return}const st=await getStore(['scanStatus']);if(st.scanStatus==='scanning'){showNot('Scan in progress','warning');return}const btn=typ==='followers'?document.getElementById('scanFollowersBtn'):document.getElementById('scanFollowingBtn');const sbtn=document.getElementById('stopScanBtn');if(btn){btn.disabled=true;btn.innerHTML='<span>⏳</span><span>Opening...</span>'}if(sbtn)sbtn.style.display='block';const sd=document.getElementById('scanStatusDot'),st2=document.getElementById('scanStatusText');if(sd&&st2){sd.classList.add('scanning');st2.textContent=`Scanning ${typ}...`}const pb=document.getElementById('scanProgress'),pf=document.getElementById('scanProgressFill');if(pb&&pf){pb.style.display='block';pf.style.width='0%'}chrome.storage.local.set({currentUser:usr,scanStatus:'scanning',currentScanType:typ});try{const res=await sendMsg({action:'startScan',username:usr,scanType:typ});if(res?.status==='scanning')startMon();else throw new Error(res?.message||'Failed')}catch(e){showNot(e.message||'Failed','error');resetUI()}}async function stopScan(){const sbtn=document.getElementById('stopScanBtn');if(sbtn){sbtn.disabled=true;sbtn.textContent='Stopping...'}showNot('Stopping scan...','warning');try{const[tab]=await chrome.tabs.query({active:true,currentWindow:true});if(tab?.id){await chrome.scripting.executeScript({target:{tabId:tab.id},func:()=>{window.xScannerShouldStop=true}})}}catch(e){console.error('Stop error:',e)}try{await chrome.runtime.sendMessage({action:'forceStopScan'});await chrome.storage.local.set({scanStatus:'idle'})}catch(e){console.error('Force stop error:',e)}if(monIv){clearInterval(monIv);monIv=null}setTimeout(()=>resetUI(),1000)}async function forceStopScan(){showNot('Force stopping scan...','warning');try{await chrome.storage.local.set({scanStatus:'idle'});await chrome.runtime.sendMessage({action:'forceStopScan'});resetUI();showNot('Scan forcibly stopped','success')}catch(e){console.error('Force stop error:',e);showNot('Force stop failed','error')}}function startMon(){let a=0;if(monIv)clearInterval(monIv);monIv=setInterval(()=>{a++;if(a>=600){clearInterval(monIv);monIv=null;chrome.storage.local.set({scanStatus:'error'});resetUI();showNot('Timeout','error');return}chrome.storage.local.get(['scanStatus','scanProgress','currentScanType'],r=>{const st=document.getElementById('scanStatusText'),pf=document.getElementById('scanProgressFill');if(r.scanProgress){const typ=r.currentScanType||'users';if(st)st.textContent=`Scanning ${typ}... ${r.scanProgress}%`;if(pf)pf.style.width=`${r.scanProgress}%`}if(r.scanStatus==='complete'){clearInterval(monIv);monIv=null;loadStats();resetUI(true);showNot(`Completed!`,'success')}else if(r.scanStatus==='error'||r.scanStatus==='idle'){clearInterval(monIv);monIv=null;resetUI();if(r.scanStatus==='error')showNot('Failed','error')}})},1000)}function resetUI(ok=false){const fb=document.getElementById('scanFollowersBtn'),fob=document.getElementById('scanFollowingBtn'),sbtn=document.getElementById('stopScanBtn'),fsbtn=document.getElementById('forceStopBtn');if(fb){fb.disabled=false;fb.innerHTML='<span>👥</span><span>Scan Followers</span>'}if(fob){fob.disabled=false;fob.innerHTML='<span>🔗</span><span>Scan Following</span>'}if(sbtn){sbtn.style.display='none';sbtn.disabled=false;sbtn.textContent='Stop Scan'}if(fsbtn){fsbtn.style.display='none'}const sd=document.getElementById('scanStatusDot'),st=document.getElementById('scanStatusText');if(sd&&st){sd.classList.remove('scanning');st.textContent=ok?'Complete':'Ready'}const pb=document.getElementById('scanProgress');if(pb)setTimeout(()=>pb.style.display='none',2000)}function loadStats(){if(!usr){document.getElementById('totalFollowers').textContent='0';document.getElementById('totalFollowing').textContent='0';document.getElementById('newFollowersCount').textContent='0';document.getElementById('unfollowersCount').textContent='0';document.getElementById('fansCount').textContent='0';document.getElementById('notFollowingBackCount').textContent='0';document.getElementById('lastCheck').textContent='No account';return}chrome.storage.local.get(['users'],r=>{const us=r.users||{},ud=us[usr]||{},tf=(ud.followers||[]).filter(f=>f&&f.username).length,tfo=(ud.following||[]).filter(f=>f&&f.username).length,unf=(ud.unfollowers||[]).filter(f=>f&&f.username),nf=(ud.newFollowers||[]).filter(f=>f&&f.username),fans=(ud.fansList||[]).filter(f=>f&&f.username),nfb=(ud.notFollowingBack||[]).filter(f=>f&&f.username);document.getElementById('totalFollowers').textContent=tf.toLocaleString();document.getElementById('totalFollowing').textContent=tfo.toLocaleString();document.getElementById('newFollowersCount').textContent='+'+nf.length;document.getElementById('unfollowersCount').textContent=unf.length;document.getElementById('fansCount').textContent=fans.length;document.getElementById('notFollowingBackCount').textContent=nfb.length;const lfc=ud.lastFollowersCheck,lfoc=ud.lastFollowingCheck;let lct='Never scanned';if(lfc&&lfoc)lct=`Last: ${fmtTime(Math.max(lfc,lfoc))}`;else if(lfc)lct=`Followers: ${fmtTime(lfc)}`;else if(lfoc)lct=`Following: ${fmtTime(lfoc)}`;document.getElementById('lastCheck').textContent=lct;if(view==='dashboard')renderAct(unf,nf);else if(view==='unfollowers')renderUnf(unf);else if(view==='new')renderNew(nf);else if(view==='fans')renderFans(fans);else if(view==='notfollowback')renderNotFollowBack(nfb);else if(view==='following')renderFol((ud.following||[]).filter(f=>f&&f.username));else if(view==='insights')renderInsights(ud)})}function handleSearch(typ,q){searchState[typ]=q.toLowerCase();loadStats()}function applySearch(list,typ){const q=searchState[typ];if(!q)return list;return list.filter(u=>(u.name||'').toLowerCase().includes(q)||(u.username||'').toLowerCase().includes(q)||(u.bio||'').toLowerCase().includes(q))}function renderAct(unf,nf){const c=document.getElementById('recentActivity');if(!unf.length&&!nf.length){c.innerHTML='<div class="info-box">No activity. Click scan buttons.</div>';return}const ra=[...unf.map(u=>({...u,type:'unfollow'})),...nf.map(u=>({...u,type:'new'}))].sort((a,b)=>(b.unfollowedAt||b.timestamp||0)-(a.unfollowedAt||a.timestamp||0)).slice(0,8);let h='<h3 style="font-size:13px;margin:16px 0 12px 0;color:rgba(255,255,255,0.7)">Recent Activity</h3><div class="user-list">';ra.forEach(u=>h+=renderCard(u,u.type));h+='</div>';c.innerHTML=h}function renderUnf(unf){const c=document.getElementById('unfollowersList');const filtered=applySearch(unf,'unfollowers');if(!filtered.length){c.innerHTML='<div class="empty-state"><div class="empty-state-icon">✅</div><div class="empty-state-title">No unfollowers found</div><div class="empty-state-text">'+(!unf.length?'Great job!':'Try different search')+'</div></div>';return}const s=[...filtered].sort((a,b)=>(b.unfollowedAt||0)-(a.unfollowedAt||0));let h=`<div style="margin-bottom:12px;font-size:13px;color:rgba(255,255,255,0.7)">Unfollowers (${filtered.length}${unf.length!==filtered.length?' of '+unf.length:''})</div><div class="user-list">`;s.forEach(u=>h+=renderCard(u,'unfollow'));h+='</div>';c.innerHTML=h}function renderNew(nf){const c=document.getElementById('newFollowersList');const filtered=applySearch(nf,'new');if(!filtered.length){c.innerHTML='<div class="empty-state"><div class="empty-state-icon">👀</div><div class="empty-state-title">No new followers found</div><div class="empty-state-text">'+(!nf.length?'Keep creating!':'Try different search')+'</div></div>';return}const s=[...filtered].sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));let h=`<div style="margin-bottom:12px;font-size:13px;color:rgba(255,255,255,0.7)">New Followers (${filtered.length}${nf.length!==filtered.length?' of '+nf.length:''})</div><div class="user-list">`;s.forEach(u=>h+=renderCard(u,'new'));h+='</div>';c.innerHTML=h}function renderFans(fans){const c=document.getElementById('fansList');const filtered=applySearch(fans,'fans');if(!filtered.length){c.innerHTML='<div class="empty-state"><div class="empty-state-icon">⭐</div><div class="empty-state-title">No fans found</div><div class="empty-state-text">'+(!fans.length?'Follow more people back!':'Try different search')+'</div></div>';return}let h=`<div class="info-box" style="margin-bottom:12px">Fans are followers you don't follow back. Consider following them!</div><div style="margin-bottom:12px;font-size:13px;color:rgba(255,255,255,0.7)">Fans (${filtered.length}${fans.length!==filtered.length?' of '+fans.length:''})</div><div class="user-list">`;filtered.forEach(u=>h+=renderCard(u,'fans'));h+='</div>';c.innerHTML=h}function renderNotFollowBack(nfb){const c=document.getElementById('notFollowingBackList');const filtered=applySearch(nfb,'notfollowback');if(!filtered.length){c.innerHTML='<div class="empty-state"><div class="empty-state-icon">🎉</div><div class="empty-state-title">Everyone follows you back!</div><div class="empty-state-text">'+(!nfb.length?'Perfect!':'Try different search')+'</div></div>';return}let h=`<div class="info-box" style="margin-bottom:12px">These accounts don't follow you back. Consider unfollowing if needed.</div><div style="margin-bottom:12px;font-size:13px;color:rgba(255,255,255,0.7)">Not Following Back (${filtered.length}${nfb.length!==filtered.length?' of '+nfb.length:''})</div><div class="user-list">`;filtered.forEach(u=>h+=renderCard(u,'notfollowback'));h+='</div>';c.innerHTML=h}function renderFol(fol){const c=document.getElementById('followingList');let filtered=applySearch(fol,'following');const f=filterState.following;if(f==='mutual')filtered=filtered.filter(u=>u.followsBack);else if(f==='notback')filtered=filtered.filter(u=>!u.followsBack);else if(f==='verified')filtered=filtered.filter(u=>u.verified);if(!filtered.length){c.innerHTML='<div class="empty-state"><div class="empty-state-icon">🔗</div><div class="empty-state-title">No following data</div><div class="empty-state-text">'+(!fol.length?'Click "Scan Following"':'Try different filter/search')+'</div></div>';return}const fbc=filtered.filter(u=>u.followsBack).length,nfbc=filtered.length-fbc;let h=`<div style="margin-bottom:12px;font-size:13px;color:rgba(255,255,255,0.7)">Following (${filtered.length}${fol.length!==filtered.length?' of '+fol.length:''}) • <span style="color:#a78bfa">${fbc} mutual</span> • <span style="color:rgba(255,255,255,0.5)">${nfbc} not back</span></div><div class="user-list">`;const s=[...filtered].sort((a,b)=>a.followsBack===b.followsBack?0:a.followsBack?-1:1);s.forEach(u=>h+=renderCard(u,'following'));h+='</div>';c.innerHTML=h}function renderInsights(ud){const c=document.getElementById('insightsContent');if(!ud.followers||!ud.followers.length){c.innerHTML='<div class="empty-state"><div class="empty-state-icon">📊</div><div class="empty-state-title">No insights yet</div><div class="empty-state-text">Scan followers and following first</div></div>';return}const fol=ud.followers||[],folg=ud.following||[],unf=ud.unfollowers||[],nf=ud.newFollowers||[],fans=ud.fansList||[],nfb=ud.notFollowingBack||[];const vf=fol.filter(f=>f.verified).length;const vfolg=folg.filter(f=>f.verified).length;const ratio=folg.length?((fol.length/folg.length)*100).toFixed(1):'N/A';const engagement=fol.length?(((fol.length-fans.length)/fol.length)*100).toFixed(1):'N/A';const churn=ud.lastFollowersCount&&ud.scanCount>1?((unf.length/ud.lastFollowersCount)*100).toFixed(2):'N/A';const growth=ud.scanHistory&&ud.scanHistory.length>1?calcGrowth(ud.scanHistory):'N/A';let h='<div class="insights-card"><div class="insights-title">📊 Account Insights</div>';h+=`<div class="insights-item">👥 Follower/Following Ratio: <strong>${ratio}${ratio!=='N/A'?'%':''}</strong></div>`;h+=`<div class="insights-item">💫 Engagement Rate: <strong>${engagement}%</strong> ${getEngagementLabel(engagement)}</div>`;h+=`<div class="insights-item">📉 Churn Rate: <strong>${churn}${churn!=='N/A'?'%':''}</strong> ${getChurnLabel(churn)}</div>`;h+=`<div class="insights-item">📈 Growth Trend: <strong>${growth}</strong></div>`;h+=`<div class="insights-item">✓ Verified Followers: <strong>${vf}</strong> (${((vf/fol.length)*100).toFixed(1)}%)</div>`;h+=`<div class="insights-item">✓ Verified Following: <strong>${vfolg}</strong></div>`;h+='</div>';h+='<div class="insights-card"><div class="insights-title">🎯 Recommendations</div>';if(nfb.length>50)h+=`<div class="insights-item">• Consider unfollowing ${nfb.length} accounts not following back</div>`;if(fans.length>20)h+=`<div class="insights-item">• You have ${fans.length} fans - consider following them back!</div>`;if(parseFloat(ratio)<50&&ratio!=='N/A')h+=`<div class="insights-item">• Low follower ratio. Focus on content quality!</div>`;if(unf.length>nf.length&&unf.length>10)h+=`<div class="insights-item">• More unfollows than new followers. Review your content strategy</div>`;if(parseFloat(engagement)>80)h+=`<div class="insights-item">• Great engagement! Keep up the good work 🔥</div>`;if(!h.includes('•'))h+=`<div class="insights-item">• Everything looks good! Keep growing 🚀</div>`;h+='</div>';if(ud.scanHistory&&ud.scanHistory.length>1){h+='<div class="insights-card"><div class="insights-title">📅 Scan History</div>';ud.scanHistory.slice(-5).reverse().forEach(s=>{h+=`<div class="insights-item">${fmtTime(s.timestamp)}: ${s.type} scan - ${s.count} users${s.verified?' ('+s.verified+' verified)':''}</div>`});h+='</div>'}c.innerHTML=h}function calcGrowth(hist){const h=hist.filter(s=>s.type==='followers');if(h.length<2)return'N/A';const recent=h.slice(-3);const old=recent[0].count,now=recent[recent.length-1].count;const diff=now-old;return diff>0?`+${diff} (Growing 📈)`:(diff<0?`${diff} (Declining 📉)`:'Stable')}function getEngagementLabel(e){if(e==='N/A')return'';const n=parseFloat(e);return n>80?'🔥 Excellent':n>60?'✨ Good':n>40?'👍 Average':'⚠️ Low'}function getChurnLabel(c){if(c==='N/A')return'';const n=parseFloat(c);return n<2?'✅ Great':n<5?'👍 Good':n<10?'⚠️ Watch':'🚨 High'}function showUnfollowGuide(){showNot('Opening X following page...','info');chrome.tabs.query({active:true,currentWindow:true},tabs=>{if(tabs[0]?.id){const url=`https://x.com/${usr}/following`;chrome.tabs.update(tabs[0].id,{url});setTimeout(()=>showNot('Manually unfollow users from this list','info'),1000)}})}function exportData(){if(!usr){showNot('No account selected','warning');return}chrome.storage.local.get(['users'],r=>{const us=r.users||{},ud=us[usr]||{};const data={username:usr,exportDate:new Date().toISOString(),followers:ud.followers||[],following:ud.following||[],unfollowers:ud.unfollowers||[],newFollowers:ud.newFollowers||[],fans:ud.fansList||[],notFollowingBack:ud.notFollowingBack||[],stats:{totalFollowers:ud.followers?.length||0,totalFollowing:ud.following?.length||0,lastCheck:ud.lastFollowersCheck||ud.lastFollowingCheck}};const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`x-tracker-${usr}-${Date.now()}.json`;a.click();URL.revokeObjectURL(url);showNot('Data exported!','success')})}function renderCard(u,typ){const isU=typ==='unfollow',isN=typ==='new',isF=typ==='following',isFan=typ==='fans',isNFB=typ==='notfollowback';let bg,br,av,st,sc;if(isU){bg='rgba(239,68,68,0.1)';br='rgba(239,68,68,0.3)';av=u.avatar?`background-image:url(${u.avatar})`:'background:linear-gradient(135deg,#ef4444,#dc2626)';st='Unfollowed';sc='#ef4444'}else if(isN){bg='rgba(16,185,129,0.1)';br='rgba(16,185,129,0.3)';av=u.avatar?`background-image:url(${u.avatar})`:'background:linear-gradient(135deg,#10b981,#059669)';st='New Follower';sc='#10b981'}else if(isFan){bg='rgba(245,158,11,0.1)';br='rgba(245,158,11,0.3)';av=u.avatar?`background-image:url(${u.avatar})`:'background:linear-gradient(135deg,#f59e0b,#d97706)';st='Fan';sc='#f59e0b'}else if(isNFB){bg='rgba(139,92,246,0.1)';br='rgba(139,92,246,0.3)';av=u.avatar?`background-image:url(${u.avatar})`:'background:linear-gradient(135deg,#8b5cf6,#7c3aed)';st='Not Following Back';sc='#a78bfa'}else if(isF){if(u.followsBack){bg='rgba(139,92,246,0.1)';br='rgba(139,92,246,0.3)';av=u.avatar?`background-image:url(${u.avatar})`:'background:linear-gradient(135deg,#8b5cf6,#7c3aed)';st='Mutual';sc='#a78bfa'}else{bg='rgba(255,255,255,0.05)';br='rgba(255,255,255,0.1)';av=u.avatar?`background-image:url(${u.avatar})`:'background:linear-gradient(135deg,#6b7280,#4b5563)';st='Not following back';sc='rgba(255,255,255,0.5)'}}else{bg='rgba(255,255,255,0.05)';br='rgba(255,255,255,0.1)';av=u.avatar?`background-image:url(${u.avatar})`:'background:linear-gradient(135deg,#3b82f6,#2563eb)';st='';sc='#60a5fa'}const verif=u.verified?'<span class="verified-badge" title="Verified">✓</span>':'';const fb=isF&&u.followsBack?'<span class="follows-back-badge">⟷ Mutual</span>':'';const ta=u.unfollowedAt||u.timestamp?`<div style="font-size:11px;color:rgba(255,255,255,0.5)">${fmtTime(u.unfollowedAt||u.timestamp)}</div>`:'';const bioEl=u.bio?`<div class="user-bio">${esc(u.bio)}</div>`:'';const avatarStyle=u.avatar?av:`${av};color:white`;return`<div class="user-card" style="background:${bg};border-color:${br}"><div class="user-info"><div class="user-avatar" style="${avatarStyle}">${u.avatar?'':esc((u.name||u.username||'?').charAt(0).toUpperCase())}</div><div class="user-details"><div class="user-name">${esc(u.name||u.username||'Unknown')}${verif}${fb}</div><div class="user-username">@${esc(u.username||'unknown')}</div>${bioEl}</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">${st?`<div style="font-size:11px;font-weight:500;color:${sc}">${st}</div>`:''}${ta}<button class="action-btn" data-username="${u.username}" title="Open profile"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button></div></div>`}function fmtTime(ts){if(!ts)return'Unknown';const d=Date.now()-ts,s=Math.floor(d/1000),m=Math.floor(s/60),h=Math.floor(m/60),dy=Math.floor(h/24),w=Math.floor(dy/7),mo=Math.floor(dy/30);if(mo>0)return`${mo}mo ago`;if(w>0)return`${w}w ago`;if(dy>0)return`${dy}d ago`;if(h>0)return`${h}h ago`;if(m>0)return`${m}m ago`;return'Just now'}function esc(t){const d=document.createElement('div');d.textContent=t;return d.innerHTML}function getStore(k){return new Promise(r=>chrome.storage.local.get(k,r))}function sendMsg(m){return new Promise((ok,err)=>chrome.runtime.sendMessage(m,res=>chrome.runtime.lastError?err(new Error(chrome.runtime.lastError.message)):ok(res)))}function showNot(m,typ='info'){const ex=document.getElementById('notificationToast');if(ex)ex.remove();const col={success:{bg:'#10b981',border:'#059669'},error:{bg:'#ef4444',border:'#dc2626'},warning:{bg:'#f59e0b',border:'#d97706'},info:{bg:'#3b82f6',border:'#2563eb'}};const c=col[typ]||col.info;const t=document.createElement('div');t.id='notificationToast';t.style.cssText=`position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:${c.bg};color:white;padding:12px 20px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.3);z-index:999999;font-size:13px;font-weight:500;border:2px solid ${c.border};animation:slideUp 0.3s ease;max-width:320px;text-align:center`;t.textContent=m;const s=document.createElement('style');s.textContent='@keyframes slideUp{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}';document.head.appendChild(s);document.body.appendChild(t);setTimeout(()=>{t.style.transition='opacity 0.3s';t.style.opacity='0';setTimeout(()=>t.remove(),300)},4000)}function showQuick(m,typ='info'){const ex=document.getElementById('quickToast');if(ex)ex.remove();const col={success:{bg:'rgba(16,185,129,0.95)',icon:'✓'},error:{bg:'rgba(239,68,68,0.95)',icon:'✕'},warning:{bg:'rgba(245,158,11,0.95)',icon:'⚠'},info:{bg:'rgba(59,130,246,0.95)',icon:'↗'}};const c=col[typ]||col.info;const t=document.createElement('div');t.id='quickToast';t.style.cssText=`position:fixed;top:70px;right:20px;background:${c.bg};color:white;padding:8px 14px;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,0.2);z-index:999999;font-size:12px;font-weight:500;animation:slideInRight 0.2s ease;display:flex;align-items:center;gap:6px;backdrop-filter:blur(10px)`;t.innerHTML=`<span style="font-size:14px">${c.icon}</span><span>${m}</span>`;const s=document.createElement('style');s.textContent='@keyframes slideInRight{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}';document.head.appendChild(s);document.body.appendChild(t);setTimeout(()=>{t.style.transition='opacity 0.2s,transform 0.2s';t.style.opacity='0';t.style.transform='translateX(20px)';setTimeout(()=>t.remove(),200)},1500)}chrome.runtime.onMessage.addListener(req=>{if(req.action==='scanComplete')loadUsr().then(()=>{loadStats();resetUI(true);showNot('Scan completed!','success')});if(req.action==='scanError'){showNot(req.error||'Scan failed','error');resetUI()}if(req.action==='scanProgress'){const st=document.getElementById('scanStatusText'),pf=document.getElementById('scanProgressFill');if(st&&req.progress)chrome.storage.local.get(['currentScanType'],r=>{const typ=r.currentScanType||'users';st.textContent=`Scanning ${typ}... ${req.progress}%`});if(pf&&req.progress)pf.style.width=`${req.progress}%`}});
+/**
+ * X-Unfollow Tracker - Popup UI Script
+ * Handles all UI interactions, data display, and user actions
+ */
+
+// ================== State Variables ==================
+let currentView = 'dashboard';
+let currentUser = null;
+let userList = [];
+let monitoringInterval = null;
+let filterState = {
+  following: 'all'
+};
+let searchState = {};
+
+// ================== Initialization ==================
+
+/**
+ * Initialize popup when DOM is ready
+ */
+document.addEventListener('DOMContentLoaded', () => {
+  loadUserData();
+  setupEventListeners();
+});
+
+/**
+ * Load user data from storage
+ */
+async function loadUserData() {
+  const data = await getFromStorage(['users', 'currentUser', 'userList', 'scanStatus', '_scanStartTime']);
+  
+  currentUser = data.currentUser;
+  userList = data.userList || [];
+  
+  // Initialize userList if empty but we have a currentUser
+  if (!userList.length && currentUser) {
+    userList = [currentUser];
+  }
+  
+  // Ensure currentUser is in userList
+  if (currentUser && !userList.includes(currentUser)) {
+    userList.unshift(currentUser);
+  }
+  
+  // Save updated userList
+  await chrome.storage.local.set({ userList: userList });
+  
+  // Update UI
+  updateUserDropdown();
+  loadStats();
+  
+  // Check for stuck scans
+  if (data.scanStatus === 'scanning') {
+    const scanAge = Date.now() - (data._scanStartTime || 0);
+    
+    if (scanAge > 300000) { // 5 minutes
+      // Auto-clear very old scans
+      await chrome.storage.local.set({ scanStatus: 'idle' });
+      showNotification('Stuck scan detected and cleared', 'warning');
+      resetUIState();
+    } else if (scanAge > 120000) { // 2 minutes
+      // Show force stop button for potentially stuck scans
+      const forceStopBtn = document.getElementById('forceStopBtn');
+      if (forceStopBtn) {
+        forceStopBtn.style.display = 'block';
+      }
+      const stopBtn = document.getElementById('stopScanBtn');
+      if (stopBtn) {
+        stopBtn.style.display = 'none';
+      }
+      startMonitoring();
+    } else {
+      // Normal ongoing scan
+      startMonitoring();
+    }
+  }
+}
+
+// ================== User Management ==================
+
+/**
+ * Update user dropdown display
+ */
+function updateUserDropdown() {
+  const displayElement = document.getElementById('currentUserDisplay');
+  const menuItemsElement = document.getElementById('userMenuItems');
+  
+  if (displayElement) {
+    displayElement.textContent = currentUser ? `@${currentUser}` : 'Select account';
+  }
+  
+  if (menuItemsElement) {
+    menuItemsElement.innerHTML = '';
+    
+    chrome.storage.local.get(['users'], (result) => {
+      const users = result.users || {};
+      
+      userList.forEach(username => {
+        const userData = users[username] || {};
+        const followersCount = userData.followers?.length || 0;
+        const followingCount = userData.following?.length || 0;
+        
+        // Build stats text
+        let statsText = '';
+        if (followersCount > 0) {
+          statsText += `${followersCount} followers`;
+        }
+        if (followingCount > 0) {
+          if (statsText) statsText += ' • ';
+          statsText += `${followingCount} following`;
+        }
+        if (!statsText) {
+          statsText = 'Not scanned';
+        }
+        
+        // Create menu item
+        const menuItem = document.createElement('div');
+        menuItem.className = 'user-menu-item' + (username === currentUser ? ' active' : '');
+        menuItem.innerHTML = `
+          <div class="user-menu-item-content">
+            <span>@${username}</span>
+            <span class="user-stats">${statsText}</span>
+          </div>
+          <button class="remove-user-btn" data-username="${username}" onclick="event.stopPropagation()">
+            Remove
+          </button>
+        `;
+        
+        // Add click handler for switching users
+        menuItem.addEventListener('click', (e) => {
+          if (!e.target.classList.contains('remove-user-btn')) {
+            switchUser(username);
+          }
+        });
+        
+        // Add remove button handler
+        menuItem.querySelector('.remove-user-btn').addEventListener('click', () => {
+          removeUser(username);
+        });
+        
+        menuItemsElement.appendChild(menuItem);
+      });
+    });
+  }
+}
+
+/**
+ * Switch to a different user account
+ * @param {string} username - Username to switch to
+ */
+function switchUser(username) {
+  if (username === currentUser) {
+    return closeMenu();
+  }
+  
+  currentUser = username;
+  chrome.storage.local.set({ currentUser: username });
+  
+  updateUserDropdown();
+  closeMenu();
+  loadStats();
+  
+  showNotification(`Switched to @${username}`, 'success');
+}
+
+/**
+ * Remove a user from tracking
+ * @param {string} username - Username to remove
+ */
+async function removeUser(username) {
+  if (userList.length === 1) {
+    showNotification('Cannot remove last account', 'warning');
+    return;
+  }
+  
+  if (!confirm(`Remove @${username}? This will delete all tracking data for this account.`)) {
+    return;
+  }
+  
+  // Remove from userList
+  userList = userList.filter(u => u !== username);
+  
+  // Remove from storage
+  const data = await getFromStorage(['users']);
+  const users = data.users || {};
+  delete users[username];
+  
+  await chrome.storage.local.set({
+    users: users,
+    userList: userList
+  });
+  
+  // Switch to another user if we removed the current one
+  if (currentUser === username) {
+    currentUser = userList[0];
+    await chrome.storage.local.set({ currentUser: currentUser });
+  }
+  
+  updateUserDropdown();
+  loadStats();
+  
+  showNotification(`Removed @${username}`, 'success');
+}
+
+/**
+ * Prompt user to add new account
+ */
+async function promptAddUser() {
+  const username = prompt('Enter X username (without @ symbol):');
+  
+  if (!username) {
+    return;
+  }
+  
+  // Clean and validate username
+  const cleanUsername = username.replace('@', '').trim();
+  
+  if (!cleanUsername || !/^[a-zA-Z0-9_]{1,15}$/.test(cleanUsername)) {
+    showNotification('Invalid username. Must be 1-15 characters, letters, numbers, and underscores only.', 'error');
+    return;
+  }
+  
+  // Check if already tracking
+  if (userList.includes(cleanUsername)) {
+    showNotification('Already tracking this account', 'warning');
+    switchUser(cleanUsername);
+    return;
+  }
+  
+  // Add to userList
+  userList.push(cleanUsername);
+  await chrome.storage.local.set({
+    userList: userList,
+    currentUser: cleanUsername
+  });
+  
+  currentUser = cleanUsername;
+  
+  updateUserDropdown();
+  closeMenu();
+  loadStats();
+  
+  showNotification(`Added @${cleanUsername}`, 'success');
+}
+
+// ================== Menu Toggle ==================
+
+/**
+ * Toggle user menu open/closed
+ */
+function toggleMenu() {
+  const menu = document.getElementById('userMenu');
+  const dropdown = document.getElementById('userDropdown');
+  
+  if (menu && dropdown) {
+    if (!menu.classList.contains('open')) {
+      updateUserDropdown(); // Refresh before opening
+    }
+    menu.classList.toggle('open');
+    dropdown.classList.toggle('open');
+  }
+}
+
+/**
+ * Close user menu
+ */
+function closeMenu() {
+  const menu = document.getElementById('userMenu');
+  const dropdown = document.getElementById('userDropdown');
+  
+  if (menu && dropdown) {
+    menu.classList.remove('open');
+    dropdown.classList.remove('open');
+  }
+}
+
+// ================== Scanning ==================
+
+/**
+ * Start a scan (followers or following)
+ * @param {string} scanType - 'followers' or 'following'
+ */
+async function startScan(scanType) {
+  if (!currentUser) {
+    showNotification('Please add an account first', 'warning');
+    return;
+  }
+  
+  // Check if already scanning
+  const status = await getFromStorage(['scanStatus']);
+  if (status.scanStatus === 'scanning') {
+    showNotification('Scan already in progress', 'warning');
+    return;
+  }
+  
+  // Update button state
+  const buttonId = scanType === 'followers' ? 'scanFollowersBtn' : 'scanFollowingBtn';
+  const button = document.getElementById(buttonId);
+  const stopButton = document.getElementById('stopScanBtn');
+  
+  if (button) {
+    button.disabled = true;
+    button.innerHTML = '<span>⏳</span><span>Opening...</span>';
+  }
+  
+  if (stopButton) {
+    stopButton.style.display = 'block';
+  }
+  
+  // Update status display
+  const statusDot = document.getElementById('scanStatusDot');
+  const statusText = document.getElementById('scanStatusText');
+  if (statusDot && statusText) {
+    statusDot.classList.add('scanning');
+    statusText.textContent = `Scanning ${scanType}...`;
+  }
+  
+  // Show progress bar
+  const progressBar = document.getElementById('scanProgress');
+  const progressFill = document.getElementById('scanProgressFill');
+  if (progressBar && progressFill) {
+    progressBar.style.display = 'block';
+    progressFill.style.width = '0%';
+  }
+  
+  // Set scan status
+  chrome.storage.local.set({
+    currentUser: currentUser,
+    scanStatus: 'scanning',
+    currentScanType: scanType
+  });
+  
+  try {
+    // Send message to background script to start scan
+    const response = await sendMessage({
+      action: 'startScan',
+      username: currentUser,
+      scanType: scanType
+    });
+    
+    if (response?.status === 'scanning') {
+      startMonitoring();
+    } else {
+      throw new Error(response?.message || 'Failed to start scan');
+    }
+  } catch (error) {
+    showNotification(error.message || 'Failed to start scan', 'error');
+    resetUIState();
+  }
+}
+
+/**
+ * Stop ongoing scan
+ */
+async function stopScan() {
+  const stopButton = document.getElementById('stopScanBtn');
+  if (stopButton) {
+    stopButton.disabled = true;
+    stopButton.textContent = 'Stopping...';
+  }
+  
+  showNotification('Stopping scan...', 'warning');
+  
+  try {
+    // Try to set global stop flag in content script
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.id) {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: () => {
+          window.xScannerShouldStop = true;
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Error setting stop flag:', error);
+  }
+  
+  try {
+    // Send force stop message
+    await chrome.runtime.sendMessage({ action: 'forceStopScan' });
+    await chrome.storage.local.set({ scanStatus: 'idle' });
+  } catch (error) {
+    console.error('Error force stopping:', error);
+  }
+  
+  // Clear monitoring
+  if (monitoringInterval) {
+    clearInterval(monitoringInterval);
+    monitoringInterval = null;
+  }
+  
+  // Reset UI after a delay
+  setTimeout(() => {
+    resetUIState();
+  }, 1000);
+}
+
+/**
+ * Force stop a stuck scan
+ */
+async function forceStopScan() {
+  showNotification('Force stopping scan...', 'warning');
+  
+  try {
+    await chrome.storage.local.set({ scanStatus: 'idle' });
+    await chrome.runtime.sendMessage({ action: 'forceStopScan' });
+    resetUIState();
+    showNotification('Scan forcibly stopped', 'success');
+  } catch (error) {
+    console.error('Force stop error:', error);
+    showNotification('Force stop failed', 'error');
+  }
+}
+
+/**
+ * Start monitoring scan progress
+ */
+function startMonitoring() {
+  let elapsedTime = 0;
+  
+  // Clear any existing interval
+  if (monitoringInterval) {
+    clearInterval(monitoringInterval);
+  }
+  
+  monitoringInterval = setInterval(() => {
+    elapsedTime++;
+    
+    // Timeout after 10 minutes (600 seconds)
+    if (elapsedTime >= 600) {
+      clearInterval(monitoringInterval);
+      monitoringInterval = null;
+      chrome.storage.local.set({ scanStatus: 'error' });
+      resetUIState();
+      showNotification('Scan timeout - taking too long', 'error');
+      return;
+    }
+    
+    // Check scan status
+    chrome.storage.local.get(['scanStatus', 'scanProgress', 'currentScanType'], (result) => {
+      const statusText = document.getElementById('scanStatusText');
+      const progressFill = document.getElementById('scanProgressFill');
+      
+      // Update progress display
+      if (result.scanProgress) {
+        const scanType = result.currentScanType || 'users';
+        if (statusText) {
+          statusText.textContent = `Scanning ${scanType}... ${result.scanProgress}%`;
+        }
+        if (progressFill) {
+          progressFill.style.width = `${result.scanProgress}%`;
+        }
+      }
+      
+      // Check if complete
+      if (result.scanStatus === 'complete') {
+        clearInterval(monitoringInterval);
+        monitoringInterval = null;
+        loadStats();
+        resetUIState(true);
+        showNotification('Scan completed!', 'success');
+      } else if (result.scanStatus === 'error' || result.scanStatus === 'idle') {
+        clearInterval(monitoringInterval);
+        monitoringInterval = null;
+        resetUIState();
+        if (result.scanStatus === 'error') {
+          showNotification('Scan failed', 'error');
+        }
+      }
+    });
+  }, 1000); // Check every second
+}
+
+/**
+ * Reset UI to idle state
+ * @param {boolean} success - Whether scan completed successfully
+ */
+function resetUIState(success = false) {
+  // Reset buttons
+  const followersButton = document.getElementById('scanFollowersBtn');
+  const followingButton = document.getElementById('scanFollowingBtn');
+  const stopButton = document.getElementById('stopScanBtn');
+  const forceStopButton = document.getElementById('forceStopBtn');
+  
+  if (followersButton) {
+    followersButton.disabled = false;
+    followersButton.innerHTML = '<span>👥</span><span>Scan Followers</span>';
+  }
+  
+  if (followingButton) {
+    followingButton.disabled = false;
+    followingButton.innerHTML = '<span>🔗</span><span>Scan Following</span>';
+  }
+  
+  if (stopButton) {
+    stopButton.style.display = 'none';
+    stopButton.disabled = false;
+    stopButton.textContent = 'Stop Scan';
+  }
+  
+  if (forceStopButton) {
+    forceStopButton.style.display = 'none';
+  }
+  
+  // Reset status display
+  const statusDot = document.getElementById('scanStatusDot');
+  const statusText = document.getElementById('scanStatusText');
+  if (statusDot && statusText) {
+    statusDot.classList.remove('scanning');
+    statusText.textContent = success ? 'Complete' : 'Ready';
+  }
+  
+  // Hide progress bar after a delay
+  const progressBar = document.getElementById('scanProgress');
+  if (progressBar) {
+    setTimeout(() => {
+      progressBar.style.display = 'none';
+    }, 2000);
+  }
+}
+
+// ================== Stats Loading ==================
+
+/**
+ * Load and display statistics
+ */
+function loadStats() {
+  if (!currentUser) {
+    // Reset all counts if no user
+    document.getElementById('totalFollowers').textContent = '0';
+    document.getElementById('totalFollowing').textContent = '0';
+    document.getElementById('newFollowersCount').textContent = '0';
+    document.getElementById('unfollowersCount').textContent = '0';
+    document.getElementById('fansCount').textContent = '0';
+    document.getElementById('notFollowingBackCount').textContent = '0';
+    document.getElementById('lastCheck').textContent = 'No account selected';
+    return;
+  }
+  
+  chrome.storage.local.get(['users'], (result) => {
+    const users = result.users || {};
+    const userData = users[currentUser] || {};
+    
+    // Extract data with null safety
+    const followers = (userData.followers || []).filter(f => f && f.username);
+    const following = (userData.following || []).filter(f => f && f.username);
+    const unfollowers = (userData.unfollowers || []).filter(f => f && f.username);
+    const newFollowers = (userData.newFollowers || []).filter(f => f && f.username);
+    const fans = (userData.fansList || []).filter(f => f && f.username);
+    const notFollowingBack = (userData.notFollowingBack || []).filter(f => f && f.username);
+    
+    // Update counts
+    document.getElementById('totalFollowers').textContent = followers.length.toLocaleString();
+    document.getElementById('totalFollowing').textContent = following.length.toLocaleString();
+    document.getElementById('newFollowersCount').textContent = '+' + newFollowers.length;
+    document.getElementById('unfollowersCount').textContent = unfollowers.length;
+    document.getElementById('fansCount').textContent = fans.length;
+    document.getElementById('notFollowingBackCount').textContent = notFollowingBack.length;
+    
+    // Update last check time
+    const lastFollowersCheck = userData.lastFollowersCheck;
+    const lastFollowingCheck = userData.lastFollowingCheck;
+    
+    let lastCheckText = 'Never scanned';
+    if (lastFollowersCheck && lastFollowingCheck) {
+      lastCheckText = `Last: ${formatTime(Math.max(lastFollowersCheck, lastFollowingCheck))}`;
+    } else if (lastFollowersCheck) {
+      lastCheckText = `Followers: ${formatTime(lastFollowersCheck)}`;
+    } else if (lastFollowingCheck) {
+      lastCheckText = `Following: ${formatTime(lastFollowingCheck)}`;
+    }
+    
+    document.getElementById('lastCheck').textContent = lastCheckText;
+    
+    // Render appropriate view
+    if (currentView === 'dashboard') {
+      renderRecentActivity(unfollowers, newFollowers);
+    } else if (currentView === 'unfollowers') {
+      renderUnfollowers(unfollowers);
+    } else if (currentView === 'new') {
+      renderNewFollowers(newFollowers);
+    } else if (currentView === 'fans') {
+      renderFans(fans);
+    } else if (currentView === 'notfollowback') {
+      renderNotFollowingBack(notFollowingBack);
+    } else if (currentView === 'following') {
+      renderFollowing(following);
+    } else if (currentView === 'insights') {
+      renderInsights(userData);
+    }
+  });
+}
+
+// ================== View Switching ==================
+
+/**
+ * Switch between different views
+ * @param {string} view - View to switch to
+ */
+function switchView(view) {
+  currentView = view;
+  
+  // Update tab active states
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.classList.toggle('active', tab.dataset.view === view);
+  });
+  
+  // Show/hide views
+  document.getElementById('dashboardView').style.display = view === 'dashboard' ? 'block' : 'none';
+  document.getElementById('unfollowersView').style.display = view === 'unfollowers' ? 'block' : 'none';
+  document.getElementById('newFollowersView').style.display = view === 'new' ? 'block' : 'none';
+  document.getElementById('fansView').style.display = view === 'fans' ? 'block' : 'none';
+  document.getElementById('notFollowingBackView').style.display = view === 'notfollowback' ? 'block' : 'none';
+  document.getElementById('followingView').style.display = view === 'following' ? 'block' : 'none';
+  document.getElementById('insightsView').style.display = view === 'insights' ? 'block' : 'none';
+  
+  // Load stats for non-dashboard views
+  if (view !== 'dashboard') {
+    loadStats();
+  }
+}
+
+// ================== Search & Filter ==================
+
+/**
+ * Handle search input
+ * @param {string} type - Type of list being searched
+ * @param {string} query - Search query
+ */
+function handleSearch(type, query) {
+  searchState[type] = query.toLowerCase();
+  loadStats(); // Reload to apply search
+}
+
+/**
+ * Apply search filter to a list
+ * @param {Array} list - List of users
+ * @param {string} type - Type of list
+ * @returns {Array} Filtered list
+ */
+function applySearch(list, type) {
+  const query = searchState[type];
+  if (!query) {
+    return list;
+  }
+  
+  return list.filter(user =>
+    (user.name || '').toLowerCase().includes(query) ||
+    (user.username || '').toLowerCase().includes(query) ||
+    (user.bio || '').toLowerCase().includes(query)
+  );
+}
+
+// ================== Rendering Functions ==================
+
+/**
+ * Render recent activity on dashboard
+ */
+function renderRecentActivity(unfollowers, newFollowers) {
+  const container = document.getElementById('recentActivity');
+  
+  if (!unfollowers.length && !newFollowers.length) {
+    container.innerHTML = '<div class="info-box">No recent activity. Click scan buttons to check for changes.</div>';
+    return;
+  }
+  
+  // Combine and sort by timestamp
+  const recentActivity = [
+    ...unfollowers.map(u => ({ ...u, type: 'unfollow' })),
+    ...newFollowers.map(u => ({ ...u, type: 'new' }))
+  ]
+    .sort((a, b) => (b.unfollowedAt || b.timestamp || 0) - (a.unfollowedAt || a.timestamp || 0))
+    .slice(0, 8);
+  
+  let html = '<h3 style="font-size: 13px; margin: 16px 0 12px 0; color: rgba(255,255,255,0.7)">Recent Activity</h3>';
+  html += '<div class="user-list">';
+  
+  recentActivity.forEach(user => {
+    html += renderUserCard(user, user.type);
+  });
+  
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+/**
+ * Render unfollowers list
+ */
+function renderUnfollowers(unfollowers) {
+  const container = document.getElementById('unfollowersList');
+  const filtered = applySearch(unfollowers, 'unfollowers');
+  
+  if (!filtered.length) {
+    const emptyMessage = !unfollowers.length 
+      ? 'Great job! No one has unfollowed you recently.' 
+      : 'No results found. Try a different search.';
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">✅</div>
+        <div class="empty-state-title">No unfollowers found</div>
+        <div class="empty-state-text">${emptyMessage}</div>
+      </div>
+    `;
+    return;
+  }
+  
+  // Sort by unfollow time
+  const sorted = [...filtered].sort((a, b) => (b.unfollowedAt || 0) - (a.unfollowedAt || 0));
+  
+  let html = `<div style="margin-bottom: 12px; font-size: 13px; color: rgba(255,255,255,0.7)">`;
+  html += `Unfollowers (${filtered.length}`;
+  if (unfollowers.length !== filtered.length) {
+    html += ` of ${unfollowers.length}`;
+  }
+  html += `)</div><div class="user-list">`;
+  
+  sorted.forEach(user => {
+    html += renderUserCard(user, 'unfollow');
+  });
+  
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+/**
+ * Render new followers list
+ */
+function renderNewFollowers(newFollowers) {
+  const container = document.getElementById('newFollowersList');
+  const filtered = applySearch(newFollowers, 'new');
+  
+  if (!filtered.length) {
+    const emptyMessage = !newFollowers.length
+      ? 'No new followers yet. Keep creating great content!'
+      : 'No results found. Try a different search.';
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">👀</div>
+        <div class="empty-state-title">No new followers found</div>
+        <div class="empty-state-text">${emptyMessage}</div>
+      </div>
+    `;
+    return;
+  }
+  
+  // Sort by timestamp
+  const sorted = [...filtered].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  
+  let html = `<div style="margin-bottom: 12px; font-size: 13px; color: rgba(255,255,255,0.7)">`;
+  html += `New Followers (${filtered.length}`;
+  if (newFollowers.length !== filtered.length) {
+    html += ` of ${newFollowers.length}`;
+  }
+  html += `)</div><div class="user-list">`;
+  
+  sorted.forEach(user => {
+    html += renderUserCard(user, 'new');
+  });
+  
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+/**
+ * Render fans list
+ */
+function renderFans(fans) {
+  const container = document.getElementById('fansList');
+  const filtered = applySearch(fans, 'fans');
+  
+  if (!filtered.length) {
+    const emptyMessage = !fans.length
+      ? 'No fans yet. Follow more people back to build connections!'
+      : 'No results found. Try a different search.';
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">⭐</div>
+        <div class="empty-state-title">No fans found</div>
+        <div class="empty-state-text">${emptyMessage}</div>
+      </div>
+    `;
+    return;
+  }
+  
+  let html = `<div class="info-box" style="margin-bottom: 12px">Fans are followers you don't follow back. Consider following them to build your community!</div>`;
+  html += `<div style="margin-bottom: 12px; font-size: 13px; color: rgba(255,255,255,0.7)">`;
+  html += `Fans (${filtered.length}`;
+  if (fans.length !== filtered.length) {
+    html += ` of ${fans.length}`;
+  }
+  html += `)</div><div class="user-list">`;
+  
+  filtered.forEach(user => {
+    html += renderUserCard(user, 'fans');
+  });
+  
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+/**
+ * Render not following back list
+ */
+function renderNotFollowingBack(notFollowingBack) {
+  const container = document.getElementById('notFollowingBackList');
+  const filtered = applySearch(notFollowingBack, 'notfollowback');
+  
+  if (!filtered.length) {
+    const emptyMessage = !notFollowingBack.length
+      ? 'Everyone you follow follows you back! Perfect!'
+      : 'No results found. Try a different search.';
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">🎉</div>
+        <div class="empty-state-title">Everyone follows you back!</div>
+        <div class="empty-state-text">${emptyMessage}</div>
+      </div>
+    `;
+    return;
+  }
+  
+  let html = `<div class="info-box" style="margin-bottom: 12px">These accounts don't follow you back. Consider unfollowing if you want to improve your follower ratio.</div>`;
+  html += `<div style="margin-bottom: 12px; font-size: 13px; color: rgba(255,255,255,0.7)">`;
+  html += `Not Following Back (${filtered.length}`;
+  if (notFollowingBack.length !== filtered.length) {
+    html += ` of ${notFollowingBack.length}`;
+  }
+  html += `)</div><div class="user-list">`;
+  
+  filtered.forEach(user => {
+    html += renderUserCard(user, 'notfollowback');
+  });
+  
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+/**
+ * Render following list with filters
+ */
+function renderFollowing(following) {
+  const container = document.getElementById('followingList');
+  let filtered = applySearch(following, 'following');
+  
+  // Apply filters
+  const filter = filterState.following;
+  if (filter === 'mutual') {
+    filtered = filtered.filter(u => u.followsBack);
+  } else if (filter === 'notback') {
+    filtered = filtered.filter(u => !u.followsBack);
+  } else if (filter === 'verified') {
+    filtered = filtered.filter(u => u.verified);
+  }
+  
+  if (!filtered.length) {
+    const emptyMessage = !following.length
+      ? 'No following data. Click "Scan Following" button.'
+      : 'No results found. Try different filter or search.';
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">🔗</div>
+        <div class="empty-state-title">No following data</div>
+        <div class="empty-state-text">${emptyMessage}</div>
+      </div>
+    `;
+    return;
+  }
+  
+  // Count mutual vs not following back
+  const mutualCount = filtered.filter(u => u.followsBack).length;
+  const notBackCount = filtered.length - mutualCount;
+  
+  let html = `<div style="margin-bottom: 12px; font-size: 13px; color: rgba(255,255,255,0.7)">`;
+  html += `Following (${filtered.length}`;
+  if (following.length !== filtered.length) {
+    html += ` of ${following.length}`;
+  }
+  html += `) • <span style="color: #a78bfa">${mutualCount} mutual</span>`;
+  html += ` • <span style="color: rgba(255,255,255,0.5)">${notBackCount} not back</span>`;
+  html += `</div><div class="user-list">`;
+  
+  // Sort: mutual first
+  const sorted = [...filtered].sort((a, b) => {
+    if (a.followsBack === b.followsBack) return 0;
+    return a.followsBack ? -1 : 1;
+  });
+  
+  sorted.forEach(user => {
+    html += renderUserCard(user, 'following');
+  });
+  
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+/**
+ * Render insights view
+ */
+function renderInsights(userData) {
+  const container = document.getElementById('insightsContent');
+  
+  if (!userData.followers || !userData.followers.length) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">📊</div>
+        <div class="empty-state-title">No insights yet</div>
+        <div class="empty-state-text">Scan followers and following first to see insights</div>
+      </div>
+    `;
+    return;
+  }
+  
+  const followers = userData.followers || [];
+  const following = userData.following || [];
+  const unfollowers = userData.unfollowers || [];
+  const newFollowers = userData.newFollowers || [];
+  const fans = userData.fansList || [];
+  const notFollowingBack = userData.notFollowingBack || [];
+  
+  // Calculate metrics
+  const verifiedFollowers = followers.filter(f => f.verified).length;
+  const verifiedFollowing = following.filter(f => f.verified).length;
+  
+  const ratio = following.length 
+    ? ((followers.length / following.length) * 100).toFixed(1)
+    : 'N/A';
+  
+  const engagement = followers.length
+    ? (((followers.length - fans.length) / followers.length) * 100).toFixed(1)
+    : 'N/A';
+  
+  const churn = userData.lastFollowersCount && userData.scanCount > 1
+    ? ((unfollowers.length / userData.lastFollowersCount) * 100).toFixed(2)
+    : 'N/A';
+  
+  const growth = userData.scanHistory && userData.scanHistory.length > 1
+    ? calculateGrowthTrend(userData.scanHistory)
+    : 'N/A';
+  
+  // Build HTML
+  let html = '<div class="insights-card">';
+  html += '<div class="insights-title">📊 Account Insights</div>';
+  html += `<div class="insights-item">👥 Follower/Following Ratio: <strong>${ratio}${ratio !== 'N/A' ? '%' : ''}</strong></div>`;
+  html += `<div class="insights-item">💫 Engagement Rate: <strong>${engagement}%</strong> ${getEngagementLabel(engagement)}</div>`;
+  html += `<div class="insights-item">📉 Churn Rate: <strong>${churn}${churn !== 'N/A' ? '%' : ''}</strong> ${getChurnLabel(churn)}</div>`;
+  html += `<div class="insights-item">📈 Growth Trend: <strong>${growth}</strong></div>`;
+  html += `<div class="insights-item">✓ Verified Followers: <strong>${verifiedFollowers}</strong> (${((verifiedFollowers / followers.length) * 100).toFixed(1)}%)</div>`;
+  html += `<div class="insights-item">✓ Verified Following: <strong>${verifiedFollowing}</strong></div>`;
+  html += '</div>';
+  
+  // Recommendations
+  html += '<div class="insights-card">';
+  html += '<div class="insights-title">🎯 Recommendations</div>';
+  
+  let hasRecommendations = false;
+  
+  if (notFollowingBack.length > 50) {
+    html += `<div class="insights-item">• Consider unfollowing ${notFollowingBack.length} accounts not following back</div>`;
+    hasRecommendations = true;
+  }
+  
+  if (fans.length > 20) {
+    html += `<div class="insights-item">• You have ${fans.length} fans - consider following them back!</div>`;
+    hasRecommendations = true;
+  }
+  
+  if (parseFloat(ratio) < 50 && ratio !== 'N/A') {
+    html += `<div class="insights-item">• Low follower ratio. Focus on content quality and engagement!</div>`;
+    hasRecommendations = true;
+  }
+  
+  if (unfollowers.length > newFollowers.length && unfollowers.length > 10) {
+    html += `<div class="insights-item">• More unfollows than new followers. Review your content strategy</div>`;
+    hasRecommendations = true;
+  }
+  
+  if (parseFloat(engagement) > 80) {
+    html += `<div class="insights-item">• Great engagement! Keep up the good work 🔥</div>`;
+    hasRecommendations = true;
+  }
+  
+  if (!hasRecommendations) {
+    html += `<div class="insights-item">• Everything looks good! Keep growing 🚀</div>`;
+  }
+  
+  html += '</div>';
+  
+  // Scan history
+  if (userData.scanHistory && userData.scanHistory.length > 1) {
+    html += '<div class="insights-card">';
+    html += '<div class="insights-title">📅 Scan History</div>';
+    
+    userData.scanHistory.slice(-5).reverse().forEach(scan => {
+      html += `<div class="insights-item">${formatTime(scan.timestamp)}: ${scan.type} scan - ${scan.count} users`;
+      if (scan.verified) {
+        html += ` (${scan.verified} verified)`;
+      }
+      html += `</div>`;
+    });
+    
+    html += '</div>';
+  }
+  
+  container.innerHTML = html;
+}
+
+/**
+ * Calculate growth trend from scan history
+ */
+function calculateGrowthTrend(scanHistory) {
+  const followerScans = scanHistory.filter(s => s.type === 'followers');
+  if (followerScans.length < 2) {
+    return 'N/A';
+  }
+  
+  const recent = followerScans.slice(-3);
+  const oldCount = recent[0].count;
+  const newCount = recent[recent.length - 1].count;
+  const difference = newCount - oldCount;
+  
+  if (difference > 0) {
+    return `+${difference} (Growing 📈)`;
+  } else if (difference < 0) {
+    return `${difference} (Declining 📉)`;
+  } else {
+    return 'Stable';
+  }
+}
+
+/**
+ * Get engagement label
+ */
+function getEngagementLabel(engagement) {
+  if (engagement === 'N/A') return '';
+  const value = parseFloat(engagement);
+  if (value > 80) return '🔥 Excellent';
+  if (value > 60) return '✨ Good';
+  if (value > 40) return '👍 Average';
+  return '⚠️ Low';
+}
+
+/**
+ * Get churn label
+ */
+function getChurnLabel(churn) {
+  if (churn === 'N/A') return '';
+  const value = parseFloat(churn);
+  if (value < 2) return '✅ Great';
+  if (value < 5) return '👍 Good';
+  if (value < 10) return '⚠️ Watch';
+  return '🚨 High';
+}
+
+/**
+ * Render a user card
+ * @param {Object} user - User object
+ * @param {string} type - Card type
+ * @returns {string} HTML string
+ */
+function renderUserCard(user, type) {
+  const isUnfollow = type === 'unfollow';
+  const isNew = type === 'new';
+  const isFollowing = type === 'following';
+  const isFan = type === 'fans';
+  const isNotFollowBack = type === 'notfollowback';
+  
+  // Determine card styling
+  let backgroundColor, borderColor, statusText, statusColor, avatarStyle;
+  
+  if (isUnfollow) {
+    backgroundColor = 'rgba(239, 68, 68, 0.1)';
+    borderColor = 'rgba(239, 68, 68, 0.3)';
+    statusText = 'Unfollowed';
+    statusColor = '#ef4444';
+  } else if (isNew) {
+    backgroundColor = 'rgba(16, 185, 129, 0.1)';
+    borderColor = 'rgba(16, 185, 129, 0.3)';
+    statusText = 'New Follower';
+    statusColor = '#10b981';
+  } else if (isFan) {
+    backgroundColor = 'rgba(245, 158, 11, 0.1)';
+    borderColor = 'rgba(245, 158, 11, 0.3)';
+    statusText = 'Fan';
+    statusColor = '#f59e0b';
+  } else if (isNotFollowBack) {
+    backgroundColor = 'rgba(139, 92, 246, 0.1)';
+    borderColor = 'rgba(139, 92, 246, 0.3)';
+    statusText = 'Not Following Back';
+    statusColor = '#a78bfa';
+  } else if (isFollowing) {
+    if (user.followsBack) {
+      backgroundColor = 'rgba(139, 92, 246, 0.1)';
+      borderColor = 'rgba(139, 92, 246, 0.3)';
+      statusText = 'Mutual';
+      statusColor = '#a78bfa';
+    } else {
+      backgroundColor = 'rgba(255, 255, 255, 0.05)';
+      borderColor = 'rgba(255, 255, 255, 0.1)';
+      statusText = 'Not following back';
+      statusColor = 'rgba(255, 255, 255, 0.5)';
+    }
+  } else {
+    backgroundColor = 'rgba(255, 255, 255, 0.05)';
+    borderColor = 'rgba(255, 255, 255, 0.1)';
+    statusText = '';
+    statusColor = '#60a5fa';
+  }
+  
+  // Avatar styling
+  const avatarBackground = user.avatar
+    ? `background-image: url(${user.avatar})`
+    : `background: linear-gradient(135deg, ${statusColor}, ${statusColor}); color: white`;
+  
+  const avatarContent = user.avatar
+    ? ''
+    : escapeHtml((user.name || user.username || '?').charAt(0).toUpperCase());
+  
+  // Verified badge
+  const verifiedBadge = user.verified
+    ? '<span class="verified-badge" title="Verified">✓</span>'
+    : '';
+  
+  // Follows back badge
+  const followsBackBadge = isFollowing && user.followsBack
+    ? '<span class="follows-back-badge">⟷ Mutual</span>'
+    : '';
+  
+  // Timestamp
+  const timestamp = user.unfollowedAt || user.timestamp
+    ? `<div style="font-size: 11px; color: rgba(255,255,255,0.5)">${formatTime(user.unfollowedAt || user.timestamp)}</div>`
+    : '';
+  
+  // Bio
+  const bio = user.bio
+    ? `<div class="user-bio">${escapeHtml(user.bio)}</div>`
+    : '';
+  
+  return `
+    <div class="user-card" style="background: ${backgroundColor}; border-color: ${borderColor}">
+      <div class="user-info">
+        <div class="user-avatar" style="${avatarBackground}">${avatarContent}</div>
+        <div class="user-details">
+          <div class="user-name">
+            ${escapeHtml(user.name || user.username || 'Unknown')}
+            ${verifiedBadge}
+            ${followsBackBadge}
+          </div>
+          <div class="user-username">@${escapeHtml(user.username || 'unknown')}</div>
+          ${bio}
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px">
+        ${statusText ? `<div style="font-size: 11px; font-weight: 500; color: ${statusColor}">${statusText}</div>` : ''}
+        ${timestamp}
+        <button class="action-btn" data-username="${user.username}" title="Open profile">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+            <polyline points="15 3 21 3 21 9"/>
+            <line x1="10" y1="14" x2="21" y2="3"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+// ================== Utility Functions ==================
+
+/**
+ * Format timestamp to human-readable text
+ * @param {number} timestamp - Unix timestamp in milliseconds
+ * @returns {string} Formatted time string
+ */
+function formatTime(timestamp) {
+  if (!timestamp) return 'Unknown';
+  
+  const diff = Date.now() - timestamp;
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+  const weeks = Math.floor(days / 7);
+  const months = Math.floor(days / 30);
+  
+  if (months > 0) return `${months}mo ago`;
+  if (weeks > 0) return `${weeks}w ago`;
+  if (days > 0) return `${days}d ago`;
+  if (hours > 0) return `${hours}h ago`;
+  if (minutes > 0) return `${minutes}m ago`;
+  return 'Just now';
+}
+
+/**
+ * Escape HTML to prevent XSS
+ * @param {string} text - Text to escape
+ * @returns {string} Escaped text
+ */
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+/**
+ * Get data from chrome storage
+ * @param {Array<string>} keys - Keys to retrieve
+ * @returns {Promise<Object>} Storage data
+ */
+function getFromStorage(keys) {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(keys, resolve);
+  });
+}
+
+/**
+ * Send message to background script
+ * @param {Object} message - Message to send
+ * @returns {Promise<any>} Response from background
+ */
+function sendMessage(message) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage(message, (response) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+      } else {
+        resolve(response);
+      }
+    });
+  });
+}
+
+/**
+ * Show notification toast
+ * @param {string} message - Message to display
+ * @param {string} type - Type of notification ('success', 'error', 'warning', 'info')
+ */
+function showNotification(message, type = 'info') {
+  // Remove existing notification
+  const existing = document.getElementById('notificationToast');
+  if (existing) {
+    existing.remove();
+  }
+  
+  // Color schemes
+  const colors = {
+    success: { bg: '#10b981', border: '#059669' },
+    error: { bg: '#ef4444', border: '#dc2626' },
+    warning: { bg: '#f59e0b', border: '#d97706' },
+    info: { bg: '#3b82f6', border: '#2563eb' }
+  };
+  
+  const color = colors[type] || colors.info;
+  
+  // Create toast
+  const toast = document.createElement('div');
+  toast.id = 'notificationToast';
+  toast.style.cssText = `
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: ${color.bg};
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    z-index: 999999;
+    font-size: 13px;
+    font-weight: 500;
+    border: 2px solid ${color.border};
+    animation: slideUp 0.3s ease;
+    max-width: 320px;
+    text-align: center;
+  `;
+  toast.textContent = message;
+  
+  // Add animation
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+    }
+  `;
+  document.head.appendChild(style);
+  
+  document.body.appendChild(toast);
+  
+  // Auto-remove after 4 seconds
+  setTimeout(() => {
+    toast.style.transition = 'opacity 0.3s';
+    toast.style.opacity = '0';
+    setTimeout(() => toast.remove(), 300);
+  }, 4000);
+}
+
+/**
+ * Show quick toast (shorter duration, top-right position)
+ * @param {string} message - Message to display
+ * @param {string} type - Type of notification
+ */
+function showQuickToast(message, type = 'info') {
+  const existing = document.getElementById('quickToast');
+  if (existing) {
+    existing.remove();
+  }
+  
+  const colors = {
+    success: { bg: 'rgba(16, 185, 129, 0.95)', icon: '✓' },
+    error: { bg: 'rgba(239, 68, 68, 0.95)', icon: '✕' },
+    warning: { bg: 'rgba(245, 158, 11, 0.95)', icon: '⚠' },
+    info: { bg: 'rgba(59, 130, 246, 0.95)', icon: '↗' }
+  };
+  
+  const color = colors[type] || colors.info;
+  
+  const toast = document.createElement('div');
+  toast.id = 'quickToast';
+  toast.style.cssText = `
+    position: fixed;
+    top: 70px;
+    right: 20px;
+    background: ${color.bg};
+    color: white;
+    padding: 8px 14px;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    z-index: 999999;
+    font-size: 12px;
+    font-weight: 500;
+    animation: slideInRight 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    backdrop-filter: blur(10px);
+  `;
+  toast.innerHTML = `<span style="font-size: 14px">${color.icon}</span><span>${message}</span>`;
+  
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes slideInRight {
+      from {
+        opacity: 0;
+        transform: translateX(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+  `;
+  document.head.appendChild(style);
+  
+  document.body.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.style.transition = 'opacity 0.2s, transform 0.2s';
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(20px)';
+    setTimeout(() => toast.remove(), 200);
+  }, 1500);
+}
+
+/**
+ * Show unfollow guide
+ */
+function showUnfollowGuide() {
+  showNotification('Opening X following page...', 'info');
+  
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    if (tabs[0]?.id) {
+      const url = `https://x.com/${currentUser}/following`;
+      chrome.tabs.update(tabs[0].id, { url });
+      setTimeout(() => {
+        showNotification('Manually unfollow users from this list', 'info');
+      }, 1000);
+    }
+  });
+}
+
+/**
+ * Export user data to JSON file
+ */
+function exportData() {
+  if (!currentUser) {
+    showNotification('No account selected', 'warning');
+    return;
+  }
+  
+  chrome.storage.local.get(['users'], (result) => {
+    const users = result.users || {};
+    const userData = users[currentUser] || {};
+    
+    const exportData = {
+      username: currentUser,
+      exportDate: new Date().toISOString(),
+      followers: userData.followers || [],
+      following: userData.following || [],
+      unfollowers: userData.unfollowers || [],
+      newFollowers: userData.newFollowers || [],
+      fans: userData.fansList || [],
+      notFollowingBack: userData.notFollowingBack || [],
+      stats: {
+        totalFollowers: userData.followers?.length || 0,
+        totalFollowing: userData.following?.length || 0,
+        lastCheck: userData.lastFollowersCheck || userData.lastFollowingCheck
+      }
+    };
+    
+    // Create and download file
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+      type: 'application/json'
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `x-tracker-${currentUser}-${Date.now()}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    
+    showNotification('Data exported successfully!', 'success');
+  });
+}
+
+// ================== Event Listeners Setup ==================
+
+/**
+ * Set up all event listeners
+ */
+function setupEventListeners() {
+  // Scan buttons
+  const scanFollowersBtn = document.getElementById('scanFollowersBtn');
+  if (scanFollowersBtn) {
+    scanFollowersBtn.addEventListener('click', () => startScan('followers'));
+  }
+  
+  const scanFollowingBtn = document.getElementById('scanFollowingBtn');
+  if (scanFollowingBtn) {
+    scanFollowingBtn.addEventListener('click', () => startScan('following'));
+  }
+  
+  // Stop buttons
+  const stopScanBtn = document.getElementById('stopScanBtn');
+  if (stopScanBtn) {
+    stopScanBtn.addEventListener('click', stopScan);
+  }
+  
+  const forceStopBtn = document.getElementById('forceStopBtn');
+  if (forceStopBtn) {
+    forceStopBtn.addEventListener('click', forceStopScan);
+  }
+  
+  // User dropdown
+  const userDropdown = document.getElementById('userDropdown');
+  if (userDropdown) {
+    userDropdown.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleMenu();
+    });
+  }
+  
+  // Close menu when clicking outside
+  document.addEventListener('click', closeMenu);
+  
+  // Add user button
+  const addUserBtn = document.getElementById('addUserBtn');
+  if (addUserBtn) {
+    addUserBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      promptAddUser();
+    });
+  }
+  
+  // Export button
+  const exportBtn = document.getElementById('exportBtn');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', exportData);
+  }
+  
+  // Tab buttons
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', (e) => {
+      switchView(e.target.dataset.view);
+    });
+  });
+  
+  // Stat cards (click to switch view)
+  document.querySelectorAll('.stat-card[data-view]').forEach(card => {
+    card.addEventListener('click', (e) => {
+      switchView(e.currentTarget.dataset.view);
+    });
+  });
+  
+  // User profile links
+  const content = document.querySelector('.content');
+  if (content) {
+    content.addEventListener('click', async (e) => {
+      const target = e.target.closest('[data-username]');
+      if (!target) return;
+      
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const username = target.dataset.username;
+      const url = `https://x.com/${username}`;
+      
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tab?.id) {
+        chrome.tabs.update(tab.id, { url });
+        showQuickToast('Opening profile...', 'info');
+      }
+    });
+  }
+  
+  // Search boxes
+  const searchBoxes = [
+    'unfollowersSearch',
+    'newSearch',
+    'fansSearch',
+    'notFollowBackSearch',
+    'followingSearch'
+  ];
+  
+  searchBoxes.forEach(id => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.addEventListener('input', (e) => {
+        const type = id.replace('Search', '').replace('notFollowBack', 'notfollowback');
+        handleSearch(type, e.target.value);
+      });
+    }
+  });
+  
+  // Filter buttons
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const filter = e.target.dataset.filter;
+      
+      // Update active state
+      document.querySelectorAll('.filter-btn').forEach(b => {
+        b.classList.remove('active');
+      });
+      e.target.classList.add('active');
+      
+      // Update filter state
+      filterState.following = filter;
+      
+      // Reload stats to apply filter
+      loadStats();
+    });
+  });
+  
+  // Unfollow guide button
+  const unfollowAllBtn = document.getElementById('unfollowAllBtn');
+  if (unfollowAllBtn) {
+    unfollowAllBtn.addEventListener('click', showUnfollowGuide);
+  }
+}
+
+// ================== Message Listener ==================
+
+/**
+ * Listen for messages from background script
+ */
+chrome.runtime.onMessage.addListener((request) => {
+  if (request.action === 'scanComplete') {
+    // Reload data and reset UI
+    loadUserData().then(() => {
+      loadStats();
+      resetUIState(true);
+      showNotification('Scan completed!', 'success');
+    });
+  }
+  
+  if (request.action === 'scanError') {
+    showNotification(request.error || 'Scan failed', 'error');
+    resetUIState();
+  }
+  
+  if (request.action === 'scanProgress') {
+    const statusText = document.getElementById('scanStatusText');
+    const progressFill = document.getElementById('scanProgressFill');
+    
+    if (statusText && request.progress) {
+      chrome.storage.local.get(['currentScanType'], (result) => {
+        const scanType = result.currentScanType || 'users';
+        statusText.textContent = `Scanning ${scanType}... ${request.progress}%`;
+      });
+    }
+    
+    if (progressFill && request.progress) {
+      progressFill.style.width = `${request.progress}%`;
+    }
+  }
+});

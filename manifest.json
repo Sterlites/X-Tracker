@@ -1,1 +1,36 @@
-{"manifest_version":3,"name":"X Tracker","version":"1.1.1","description":"Track who unfollows you on X (Twitter)","permissions":["storage","tabs","scripting","notifications"],"host_permissions":["https://twitter.com/*","https://x.com/*"],"action":{"default_popup":"popup.html","default_icon":{"16":"icons/icon16.png","48":"icons/icon48.png","128":"icons/icon128.png"}},"background":{"service_worker":"background.js"},"icons":{"16":"icons/icon16.png","48":"icons/icon48.png","128":"icons/icon128.png"}}
+{
+  "manifest_version": 3,
+  "name": "X Tracker - Unfollow Monitor",
+  "version": "2.0.0",
+  "description": "Track who unfollows you on X (Twitter). Monitor followers, following, and social media engagement with privacy-first local storage.",
+  "permissions": [
+    "storage",
+    "tabs",
+    "scripting",
+    "notifications"
+  ],
+  "host_permissions": [
+    "https://twitter.com/*",
+    "https://x.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    },
+    "default_title": "X Tracker - Monitor Unfollowers"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}

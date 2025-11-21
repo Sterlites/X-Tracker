@@ -1,2 +1,861 @@
-<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>X Tracker</title><style>*{margin:0;padding:0;box-sizing:border-box}body{width:450px;min-height:600px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);color:#fff}.header{background:linear-gradient(90deg,#1a1a2e 0%,#16213e 100%);padding:16px;box-shadow:0 4px 6px rgba(0,0,0,.2)}.header-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}.title{display:flex;align-items:center;gap:8px;font-size:20px;font-weight:700}.settings-btn{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);padding:6px 10px;border-radius:6px;cursor:pointer;transition:all .2s;font-size:12px;color:#fff}.settings-btn:hover{background:rgba(255,255,255,.15);border-color:#3b82f6}.user-selector{position:relative;margin-bottom:12px}.user-dropdown{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);padding:10px 12px;border-radius:8px;color:#fff;width:100%;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;transition:all .2s}.user-dropdown:hover{background:rgba(255,255,255,.15);border-color:#3b82f6}.user-dropdown-arrow{transition:transform .2s}.user-dropdown.open .user-dropdown-arrow{transform:rotate(180deg)}.user-menu{position:absolute;top:100%;left:0;right:0;background:#16213e;border:1px solid rgba(255,255,255,.2);border-radius:8px;margin-top:4px;max-height:200px;overflow-y:auto;z-index:100;box-shadow:0 8px 16px rgba(0,0,0,.3);display:none}.user-menu.open{display:block}.user-menu-item{padding:10px 12px;cursor:pointer;transition:background .2s;display:flex;justify-content:space-between;align-items:center;position:relative}.user-menu-item:hover{background:rgba(59,130,246,.2)}.user-menu-item.active{background:rgba(59,130,246,.3);font-weight:500}.user-menu-item-content{display:flex;flex-direction:column;flex:1}.user-stats{font-size:10px;color:rgba(255,255,255,.5);margin-top:2px}.remove-user-btn{background:rgba(239,68,68,.2);border:1px solid rgba(239,68,68,.3);color:#ef4444;padding:4px 8px;border-radius:4px;font-size:11px;cursor:pointer;transition:all .2s;opacity:0}.user-menu-item:hover .remove-user-btn{opacity:1}.remove-user-btn:hover{background:rgba(239,68,68,.4);border-color:#ef4444}.add-user-btn{background:rgba(16,185,129,.2);border:1px dashed rgba(16,185,129,.5);padding:8px 12px;border-radius:6px;color:#10b981;cursor:pointer;font-size:12px;font-weight:500;text-align:center;transition:all .2s}.add-user-btn:hover{background:rgba(16,185,129,.3);border-color:#10b981}.scan-buttons{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}.scan-btn{background:#3b82f6;border:none;padding:10px 12px;border-radius:8px;color:#fff;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:6px;transition:all .2s;font-weight:500;box-shadow:0 2px 4px rgba(0,0,0,.1);justify-content:center}.scan-btn.following{background:#8b5cf6}.scan-btn:hover:not(:disabled){background:#2563eb;transform:translateY(-1px);box-shadow:0 4px 6px rgba(0,0,0,.2)}.scan-btn.following:hover:not(:disabled){background:#7c3aed}.scan-btn:disabled{opacity:.5;cursor:not-allowed;transform:none;box-shadow:none}.stop-scan-btn{background:rgba(239,68,68,.2);border:1px solid rgba(239,68,68,.3);color:#ef4444;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;text-align:center;transition:all .2s;display:none;margin-bottom:8px;width:100%}.stop-scan-btn:hover:not(:disabled){background:rgba(239,68,68,.4);border-color:#ef4444;transform:translateY(-1px)}.stop-scan-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}.scan-info{display:flex;align-items:center;justify-content:space-between;font-size:11px;color:rgba(255,255,255,.7);margin-bottom:8px}.scan-status{display:flex;align-items:center;gap:4px}.scan-status-dot{width:6px;height:6px;border-radius:50%;background:#10b981}.scan-status-dot.scanning{background:#3b82f6;animation:pulse 2s infinite}@keyframes pulse{0%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.2)}100%{opacity:1;transform:scale(1)}}.tabs{display:flex;border-bottom:1px solid rgba(255,255,255,.1);overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}.tab{flex:0 0 auto;padding:12px 12px;background:none;border:none;color:rgba(255,255,255,.6);cursor:pointer;font-size:11px;font-weight:500;transition:all .2s;white-space:nowrap}.tab.active{color:#60a5fa;border-bottom:2px solid #60a5fa;background:rgba(255,255,255,.05)}.content{padding:16px;max-height:400px;overflow-y:auto}.content::-webkit-scrollbar{width:6px}.content::-webkit-scrollbar-track{background:rgba(255,255,255,.05)}.content::-webkit-scrollbar-thumb{background:rgba(255,255,255,.2);border-radius:3px}.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}.stat-card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:16px;transition:all .2s;cursor:pointer}.stat-card:hover{background:rgba(255,255,255,.08);transform:translateY(-2px)}.stat-label{font-size:11px;color:rgba(255,255,255,.6);margin-bottom:8px;display:flex;align-items:center;gap:4px}.stat-value{font-size:24px;font-weight:700}.user-list{display:flex;flex-direction:column;gap:8px}.user-card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:12px;display:flex;justify-content:space-between;align-items:center;transition:all .2s}.user-card:hover{background:rgba(255,255,255,.08);transform:translateX(2px)}.user-info{display:flex;align-items:center;gap:12px;flex:1;min-width:0}.user-avatar{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;flex-shrink:0;background-size:cover;background-position:center}.user-details{font-size:13px;flex:1;min-width:0}.user-name{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:4px}.user-username{color:rgba(255,255,255,.5);font-size:12px;margin-top:2px}.user-bio{color:rgba(255,255,255,.4);font-size:11px;margin-top:4px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.verified-badge{color:#1d9bf0;font-size:14px}.follows-back-badge{display:inline-flex;align-items:center;gap:3px;background:rgba(139,92,246,.2);border:1px solid rgba(139,92,246,.4);color:#a78bfa;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;margin-left:4px}.action-btn{padding:5px 7px;border:none;background:rgba(255,255,255,.1);color:rgba(255,255,255,.8);border-radius:5px;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;justify-content:center}.action-btn:hover{background:rgba(255,255,255,.2);color:#fff;transform:scale(1.05)}.action-btn svg{display:block}.info-box{background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);border-radius:8px;padding:12px;font-size:12px;line-height:1.5;margin-top:16px}.empty-state{text-align:center;padding:60px 20px;color:rgba(255,255,255,.5)}.empty-state-icon{font-size:48px;margin-bottom:16px}.empty-state-title{font-size:14px;margin-bottom:8px;font-weight:500}.empty-state-text{font-size:12px}.footer{border-top:1px solid rgba(255,255,255,.1);padding:12px;text-align:center;font-size:11px;color:rgba(255,255,255,.4);background:rgba(0,0,0,.2)}.progress-bar{height:4px;background:rgba(255,255,255,.1);border-radius:2px;overflow:hidden;margin-top:8px}.progress-fill{height:100%;background:linear-gradient(90deg,#3b82f6,#60a5fa);width:0;transition:width .3s}.filter-bar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}.filter-btn{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);padding:6px 12px;border-radius:6px;font-size:11px;color:#fff;cursor:pointer;transition:all .2s}.filter-btn:hover{background:rgba(255,255,255,.15)}.filter-btn.active{background:#3b82f6;border-color:#3b82f6}.search-box{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);padding:8px 12px;border-radius:6px;color:#fff;width:100%;font-size:12px;margin-bottom:12px}.search-box::placeholder{color:rgba(255,255,255,.5)}.bulk-actions{display:flex;gap:8px;margin-bottom:12px}.bulk-btn{background:rgba(139,92,246,.2);border:1px solid rgba(139,92,246,.4);padding:8px 12px;border-radius:6px;font-size:11px;color:#a78bfa;cursor:pointer;transition:all .2s;font-weight:500}.bulk-btn:hover{background:rgba(139,92,246,.3);border-color:#8b5cf6}.export-btn{background:rgba(16,185,129,.2);border:1px solid rgba(16,185,129,.4)}.export-btn:hover{background:rgba(16,185,129,.3)}.insights-card{background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);border-radius:8px;padding:12px;margin-bottom:12px}.insights-title{font-size:12px;font-weight:600;margin-bottom:8px;color:#60a5fa}.insights-item{font-size:11px;color:rgba(255,255,255,.7);margin-bottom:4px;line-height:1.4}</style></head><body><div class="header"><div class="header-top"><div class="title"><span>💥</span><span>X Tracker</span></div><button class="settings-btn" id="exportBtn">📊 Export</button></div><div class="header-controls"><div class="user-selector"><div class="user-dropdown" id="userDropdown"><span id="currentUserDisplay">Select account</span><span class="user-dropdown-arrow">▼</span></div><div class="user-menu" id="userMenu"><div id="userMenuItems"></div><div class="add-user-btn" id="addUserBtn">+ Add Account</div></div></div><div class="scan-buttons"><button id="scanFollowersBtn" class="scan-btn"><span>👥</span><span>Scan Followers</span></button><button id="scanFollowingBtn" class="scan-btn following"><span>🔗</span><span>Scan Following</span></button></div><button id="stopScanBtn" class="stop-scan-btn">⏹ Stop Scan</button>
-<button id="forceStopBtn" class="stop-scan-btn" style="display:none;background:rgba(139,92,246,.2);border:1px solid rgba(139,92,246,.4);color:#a78bfa;">🔧 Force Stop</button><div class="scan-info"><div style="font-size:11px;color:rgba(255,255,255,.6)"><span id="lastCheck">Never scanned</span></div><div class="scan-status"><span class="scan-status-dot" id="scanStatusDot"></span><span id="scanStatusText">Ready</span></div></div><div class="progress-bar" id="scanProgress" style="display:none"><div class="progress-fill" id="scanProgressFill"></div></div></div></div><div class="tabs"><button class="tab active" data-view="dashboard">Dashboard</button><button class="tab" data-view="unfollowers">Unfollowers</button><button class="tab" data-view="new">New</button><button class="tab" data-view="fans">Fans</button><button class="tab" data-view="notfollowback">Not Follow Back</button><button class="tab" data-view="following">Following</button><button class="tab" data-view="insights">Insights</button></div><div class="content"><div id="dashboardView"><div class="stats-grid"><div class="stat-card" data-view="followers"><div class="stat-label">👥 Followers</div><div class="stat-value" id="totalFollowers">0</div></div><div class="stat-card" data-view="following"><div class="stat-label">🔗 Following</div><div class="stat-value" id="totalFollowing">0</div></div><div class="stat-card" data-view="unfollowers"><div class="stat-label">➖ Unfollowers</div><div class="stat-value" style="color:#ef4444" id="unfollowersCount">0</div></div><div class="stat-card" data-view="new"><div class="stat-label">➕ New</div><div class="stat-value" style="color:#10b981" id="newFollowersCount">0</div></div><div class="stat-card" data-view="fans"><div class="stat-label">⭐ Fans</div><div class="stat-value" style="color:#f59e0b" id="fansCount">0</div></div><div class="stat-card" data-view="notfollowback"><div class="stat-label">❌ Not Follow Back</div><div class="stat-value" style="color:#8b5cf6" id="notFollowingBackCount">0</div></div></div><div id="recentActivity"></div></div><div id="unfollowersView" style="display:none"><input type="text" class="search-box" id="unfollowersSearch" placeholder="🔍 Search unfollowers..."><div id="unfollowersList"></div></div><div id="newFollowersView" style="display:none"><input type="text" class="search-box" id="newSearch" placeholder="🔍 Search new followers..."><div id="newFollowersList"></div></div><div id="fansView" style="display:none"><input type="text" class="search-box" id="fansSearch" placeholder="🔍 Search fans..."><div id="fansList"></div></div><div id="notFollowingBackView" style="display:none"><input type="text" class="search-box" id="notFollowBackSearch" placeholder="🔍 Search not following back..."><div class="bulk-actions"><button class="bulk-btn" id="unfollowAllBtn">🔄 Bulk Unfollow Guide</button></div><div id="notFollowingBackList"></div></div><div id="followingView" style="display:none"><div class="filter-bar"><button class="filter-btn active" data-filter="all">All</button><button class="filter-btn" data-filter="mutual">Mutual</button><button class="filter-btn" data-filter="notback">Not Follow Back</button><button class="filter-btn" data-filter="verified">Verified</button></div><input type="text" class="search-box" id="followingSearch" placeholder="🔍 Search following..."><div id="followingList"></div></div><div id="insightsView" style="display:none"><div id="insightsContent"></div></div></div><div class="footer">Data stored locally • No external servers</div><script src="popup.js"></script></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>X Tracker - Unfollow Monitor</title>
+  
+  <style>
+    /* Reset and Base Styles */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 450px;
+      min-height: 600px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #fff;
+      overflow-x: hidden;
+    }
+
+    /* Header Styles */
+    .header {
+      background: linear-gradient(90deg, #1a1a2e 0%, #16213e 100%);
+      padding: 16px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+    }
+
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    .settings-btn {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 6px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 12px;
+      color: #fff;
+    }
+
+    .settings-btn:hover {
+      background: rgba(255, 255, 255, 0.15);
+      border-color: #3b82f6;
+    }
+
+    /* User Selector */
+    .user-selector {
+      position: relative;
+      margin-bottom: 12px;
+    }
+
+    .user-dropdown {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 10px 12px;
+      border-radius: 8px;
+      color: #fff;
+      width: 100%;
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: all 0.2s;
+    }
+
+    .user-dropdown:hover {
+      background: rgba(255, 255, 255, 0.15);
+      border-color: #3b82f6;
+    }
+
+    .user-dropdown-arrow {
+      transition: transform 0.2s;
+    }
+
+    .user-dropdown.open .user-dropdown-arrow {
+      transform: rotate(180deg);
+    }
+
+    .user-menu {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: #16213e;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      margin-top: 4px;
+      max-height: 200px;
+      overflow-y: auto;
+      z-index: 100;
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+      display: none;
+    }
+
+    .user-menu.open {
+      display: block;
+    }
+
+    .user-menu-item {
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: relative;
+    }
+
+    .user-menu-item:hover {
+      background: rgba(59, 130, 246, 0.2);
+    }
+
+    .user-menu-item.active {
+      background: rgba(59, 130, 246, 0.3);
+      font-weight: 500;
+    }
+
+    .user-menu-item-content {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+    }
+
+    .user-stats {
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.5);
+      margin-top: 2px;
+    }
+
+    .remove-user-btn {
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #ef4444;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.2s;
+      opacity: 0;
+    }
+
+    .user-menu-item:hover .remove-user-btn {
+      opacity: 1;
+    }
+
+    .remove-user-btn:hover {
+      background: rgba(239, 68, 68, 0.4);
+      border-color: #ef4444;
+    }
+
+    .add-user-btn {
+      background: rgba(16, 185, 129, 0.2);
+      border: 1px dashed rgba(16, 185, 129, 0.5);
+      padding: 8px 12px;
+      border-radius: 6px;
+      color: #10b981;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      text-align: center;
+      transition: all 0.2s;
+    }
+
+    .add-user-btn:hover {
+      background: rgba(16, 185, 129, 0.3);
+      border-color: #10b981;
+    }
+
+    /* Scan Buttons */
+    .scan-buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .scan-btn {
+      background: #3b82f6;
+      border: none;
+      padding: 10px 12px;
+      border-radius: 8px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+      font-weight: 500;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      justify-content: center;
+    }
+
+    .scan-btn.following {
+      background: #8b5cf6;
+    }
+
+    .scan-btn:hover:not(:disabled) {
+      background: #2563eb;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+    }
+
+    .scan-btn.following:hover:not(:disabled) {
+      background: #7c3aed;
+    }
+
+    .scan-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .stop-scan-btn {
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #ef4444;
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      text-align: center;
+      transition: all 0.2s;
+      display: none;
+      margin-bottom: 8px;
+      width: 100%;
+    }
+
+    .stop-scan-btn:hover:not(:disabled) {
+      background: rgba(239, 68, 68, 0.4);
+      border-color: #ef4444;
+      transform: translateY(-1px);
+    }
+
+    .stop-scan-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* Scan Info */
+    .scan-info {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.7);
+      margin-bottom: 8px;
+    }
+
+    .scan-status {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .scan-status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #10b981;
+    }
+
+    .scan-status-dot.scanning {
+      background: #3b82f6;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+      50% {
+        opacity: 0.4;
+        transform: scale(1.2);
+      }
+    }
+
+    /* Progress Bar */
+    .progress-bar {
+      height: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #3b82f6, #60a5fa);
+      width: 0;
+      transition: width 0.3s;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .tabs::-webkit-scrollbar {
+      display: none;
+    }
+
+    .tab {
+      flex: 0 0 auto;
+      padding: 12px;
+      background: none;
+      border: none;
+      color: rgba(255, 255, 255, 0.6);
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 500;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .tab.active {
+      color: #60a5fa;
+      border-bottom: 2px solid #60a5fa;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    /* Content Area */
+    .content {
+      padding: 16px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .content::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .content::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .content::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 3px;
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .stat-card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 16px;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+
+    .stat-card:hover {
+      background: rgba(255, 255, 255, 0.08);
+      transform: translateY(-2px);
+    }
+
+    .stat-label {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.6);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+    }
+
+    /* User List */
+    .user-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .user-card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: all 0.2s;
+    }
+
+    .user-card:hover {
+      background: rgba(255, 255, 255, 0.08);
+      transform: translateX(2px);
+    }
+
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .user-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 16px;
+      flex-shrink: 0;
+      background-size: cover;
+      background-position: center;
+    }
+
+    .user-details {
+      font-size: 13px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .user-name {
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .user-username {
+      color: rgba(255, 255, 255, 0.5);
+      font-size: 12px;
+      margin-top: 2px;
+    }
+
+    .user-bio {
+      color: rgba(255, 255, 255, 0.4);
+      font-size: 11px;
+      margin-top: 4px;
+      line-height: 1.3;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .verified-badge {
+      color: #1d9bf0;
+      font-size: 14px;
+    }
+
+    .follows-back-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      background: rgba(139, 92, 246, 0.2);
+      border: 1px solid rgba(139, 92, 246, 0.4);
+      color: #a78bfa;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      margin-left: 4px;
+    }
+
+    .action-btn {
+      padding: 5px 7px;
+      border: none;
+      background: rgba(255, 255, 255, 0.1);
+      color: rgba(255, 255, 255, 0.8);
+      border-radius: 5px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .action-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+      color: #fff;
+      transform: scale(1.05);
+    }
+
+    .action-btn svg {
+      display: block;
+    }
+
+    /* Info Box */
+    .info-box {
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 12px;
+      line-height: 1.5;
+      margin-top: 16px;
+    }
+
+    /* Empty State */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    .empty-state-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+
+    .empty-state-title {
+      font-size: 14px;
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+
+    .empty-state-text {
+      font-size: 12px;
+    }
+
+    /* Filter Bar */
+    .filter-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    .filter-btn {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 11px;
+      color: #fff;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .filter-btn:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    .filter-btn.active {
+      background: #3b82f6;
+      border-color: #3b82f6;
+    }
+
+    /* Search Box */
+    .search-box {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 8px 12px;
+      border-radius: 6px;
+      color: #fff;
+      width: 100%;
+      font-size: 12px;
+      margin-bottom: 12px;
+    }
+
+    .search-box::placeholder {
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    /* Bulk Actions */
+    .bulk-actions {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .bulk-btn {
+      background: rgba(139, 92, 246, 0.2);
+      border: 1px solid rgba(139, 92, 246, 0.4);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 11px;
+      color: #a78bfa;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-weight: 500;
+    }
+
+    .bulk-btn:hover {
+      background: rgba(139, 92, 246, 0.3);
+      border-color: #8b5cf6;
+    }
+
+    .export-btn {
+      background: rgba(16, 185, 129, 0.2);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+    }
+
+    .export-btn:hover {
+      background: rgba(16, 185, 129, 0.3);
+    }
+
+    /* Insights */
+    .insights-card {
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+
+    .insights-title {
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #60a5fa;
+    }
+
+    .insights-item {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.7);
+      margin-bottom: 4px;
+      line-height: 1.4;
+    }
+
+    /* Footer */
+    .footer {
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 12px;
+      text-align: center;
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.4);
+      background: rgba(0, 0, 0, 0.2);
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Header -->
+  <div class="header">
+    <div class="header-top">
+      <div class="title">
+        <span>💥</span>
+        <span>X Tracker</span>
+      </div>
+      <button class="settings-btn" id="exportBtn" aria-label="Export data">
+        📊 Export
+      </button>
+    </div>
+
+    <div class="header-controls">
+      <!-- User Selector -->
+      <div class="user-selector">
+        <div class="user-dropdown" id="userDropdown" role="button" tabindex="0" aria-label="Select account">
+          <span id="currentUserDisplay">Select account</span>
+          <span class="user-dropdown-arrow">▼</span>
+        </div>
+        <div class="user-menu" id="userMenu" role="menu">
+          <div id="userMenuItems"></div>
+          <div class="add-user-btn" id="addUserBtn" role="button" tabindex="0">
+            + Add Account
+          </div>
+        </div>
+      </div>
+
+      <!-- Scan Buttons -->
+      <div class="scan-buttons">
+        <button id="scanFollowersBtn" class="scan-btn" aria-label="Scan followers">
+          <span>👥</span>
+          <span>Scan Followers</span>
+        </button>
+        <button id="scanFollowingBtn" class="scan-btn following" aria-label="Scan following">
+          <span>🔗</span>
+          <span>Scan Following</span>
+        </button>
+      </div>
+
+      <!-- Stop/Force Stop Buttons -->
+      <button id="stopScanBtn" class="stop-scan-btn" aria-label="Stop scan">
+        ⏹ Stop Scan
+      </button>
+      <button 
+        id="forceStopBtn" 
+        class="stop-scan-btn" 
+        style="display: none; background: rgba(139, 92, 246, 0.2); border: 1px solid rgba(139, 92, 246, 0.4); color: #a78bfa;"
+        aria-label="Force stop scan">
+        🔧 Force Stop
+      </button>
+
+      <!-- Scan Info -->
+      <div class="scan-info">
+        <div style="font-size: 11px; color: rgba(255, 255, 255, 0.6)">
+          <span id="lastCheck">Never scanned</span>
+        </div>
+        <div class="scan-status">
+          <span class="scan-status-dot" id="scanStatusDot" aria-hidden="true"></span>
+          <span id="scanStatusText">Ready</span>
+        </div>
+      </div>
+
+      <!-- Progress Bar -->
+      <div class="progress-bar" id="scanProgress" style="display: none" role="progressbar" aria-valuemin="0" aria-valuemax="100">
+        <div class="progress-fill" id="scanProgressFill"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs" role="tablist">
+    <button class="tab active" data-view="dashboard" role="tab" aria-selected="true">Dashboard</button>
+    <button class="tab" data-view="unfollowers" role="tab">Unfollowers</button>
+    <button class="tab" data-view="new" role="tab">New</button>
+    <button class="tab" data-view="fans" role="tab">Fans</button>
+    <button class="tab" data-view="notfollowback" role="tab">Not Follow Back</button>
+    <button class="tab" data-view="following" role="tab">Following</button>
+    <button class="tab" data-view="insights" role="tab">Insights</button>
+  </div>
+
+  <!-- Content -->
+  <div class="content">
+    <!-- Dashboard View -->
+    <div id="dashboardView" role="tabpanel">
+      <div class="stats-grid">
+        <div class="stat-card" data-view="followers" tabindex="0">
+          <div class="stat-label">👥 Followers</div>
+          <div class="stat-value" id="totalFollowers">0</div>
+        </div>
+        <div class="stat-card" data-view="following" tabindex="0">
+          <div class="stat-label">🔗 Following</div>
+          <div class="stat-value" id="totalFollowing">0</div>
+        </div>
+        <div class="stat-card" data-view="unfollowers" tabindex="0">
+          <div class="stat-label">➖ Unfollowers</div>
+          <div class="stat-value" style="color: #ef4444" id="unfollowersCount">0</div>
+        </div>
+        <div class="stat-card" data-view="new" tabindex="0">
+          <div class="stat-label">➕ New</div>
+          <div class="stat-value" style="color: #10b981" id="newFollowersCount">0</div>
+        </div>
+        <div class="stat-card" data-view="fans" tabindex="0">
+          <div class="stat-label">⭐ Fans</div>
+          <div class="stat-value" style="color: #f59e0b" id="fansCount">0</div>
+        </div>
+        <div class="stat-card" data-view="notfollowback" tabindex="0">
+          <div class="stat-label">❌ Not Follow Back</div>
+          <div class="stat-value" style="color: #8b5cf6" id="notFollowingBackCount">0</div>
+        </div>
+      </div>
+      <div id="recentActivity"></div>
+    </div>
+
+    <!-- Unfollowers View -->
+    <div id="unfollowersView" style="display: none" role="tabpanel">
+      <input 
+        type="text" 
+        class="search-box" 
+        id="unfollowersSearch" 
+        placeholder="🔍 Search unfollowers..."
+        aria-label="Search unfollowers">
+      <div id="unfollowersList"></div>
+    </div>
+
+    <!-- New Followers View -->
+    <div id="newFollowersView" style="display: none" role="tabpanel">
+      <input 
+        type="text" 
+        class="search-box" 
+        id="newSearch" 
+        placeholder="🔍 Search new followers..."
+        aria-label="Search new followers">
+      <div id="newFollowersList"></div>
+    </div>
+
+    <!-- Fans View -->
+    <div id="fansView" style="display: none" role="tabpanel">
+      <input 
+        type="text" 
+        class="search-box" 
+        id="fansSearch" 
+        placeholder="🔍 Search fans..."
+        aria-label="Search fans">
+      <div id="fansList"></div>
+    </div>
+
+    <!-- Not Following Back View -->
+    <div id="notFollowingBackView" style="display: none" role="tabpanel">
+      <input 
+        type="text" 
+        class="search-box" 
+        id="notFollowBackSearch" 
+        placeholder="🔍 Search not following back..."
+        aria-label="Search accounts not following back">
+      <div class="bulk-actions">
+        <button class="bulk-btn" id="unfollowAllBtn">
+          🔄 Bulk Unfollow Guide
+        </button>
+      </div>
+      <div id="notFollowingBackList"></div>
+    </div>
+
+    <!-- Following View -->
+    <div id="followingView" style="display: none" role="tabpanel">
+      <div class="filter-bar" role="group" aria-label="Filter options">
+        <button class="filter-btn active" data-filter="all">All</button>
+        <button class="filter-btn" data-filter="mutual">Mutual</button>
+        <button class="filter-btn" data-filter="notback">Not Follow Back</button>
+        <button class="filter-btn" data-filter="verified">Verified</button>
+      </div>
+      <input 
+        type="text" 
+        class="search-box" 
+        id="followingSearch" 
+        placeholder="🔍 Search following..."
+        aria-label="Search following">
+      <div id="followingList"></div>
+    </div>
+
+    <!-- Insights View -->
+    <div id="insightsView" style="display: none" role="tabpanel">
+      <div id="insightsContent"></div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    Data stored locally • No external servers
+  </div>
+
+  <!-- JavaScript -->
+  <script src="popup.js"></script>
+</body>
+</html>
