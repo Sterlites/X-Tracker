@@ -1,13 +1,16 @@
 {
   "manifest_version": 3,
   "name": "X Tracker - Unfollow Monitor",
-  "version": "2.0.0",
-  "description": "Track who unfollows you on X (Twitter). Monitor followers, following, and social media engagement with privacy-first local storage.",
+  "version": "3.0.0",
+  "description": "Autonomously track who unfollows you on X (Twitter). Background monitoring with trend charts, event timelines, and account health analytics. Privacy-first local storage.",
   "permissions": [
     "storage",
-    "tabs",
+    "alarms",
+    "offscreen",
+    "cookies",
+    "notifications",
     "scripting",
-    "notifications"
+    "tabs"
   ],
   "host_permissions": [
     "https://twitter.com/*",
