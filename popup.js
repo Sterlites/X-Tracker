@@ -12,6 +12,10 @@ let filterState = {
   following: 'all'
 };
 let searchState = {};
+let autoScanState = {
+  autoScanEnabled: false,
+  autoScanIntervalMinutes: 120
+};
 
 // ================== Initialization ==================
 
@@ -47,6 +51,7 @@ async function loadUserData() {
   
   // Update UI
   updateUserDropdown();
+  await loadAutoScanSettings();
   loadStats();
   
   // Check for stuck scans
@@ -73,6 +78,83 @@ async function loadUserData() {
       // Normal ongoing scan
       startMonitoring();
     }
+  }
+}
+
+async function loadAutoScanSettings() {
+  try {
+    const settings = await sendMessage({ action: 'getAutoScanSettings' });
+    autoScanState = {
+      ...autoScanState,
+      ...settings
+    };
+    renderAutoScanControls();
+  } catch (error) {
+    console.error('Failed to load auto-scan settings:', error);
+  }
+}
+
+function renderAutoScanControls() {
+  const enabledEl = document.getElementById('autoScanEnabled');
+  const intervalEl = document.getElementById('autoScanInterval');
+  const statusEl = document.getElementById('autoScanStatus');
+  if (!enabledEl || !intervalEl || !statusEl) {
+    return;
+  }
+
+  enabledEl.checked = !!autoScanState.autoScanEnabled;
+  intervalEl.value = String(autoScanState.autoScanIntervalMinutes || 120);
+
+  if (!autoScanState.autoScanEnabled) {
+    statusEl.textContent = 'Auto scan is off.';
+    return;
+  }
+
+  const cooldownUntil = autoScanState.autoScanCooldownUntil || 0;
+  const nextRunAt = autoScanState.autoScanNextRunAt || 0;
+  if (cooldownUntil > Date.now()) {
+    statusEl.textContent = `Cooldown until ${formatDateTime(cooldownUntil)}.`;
+  } else if (nextRunAt) {
+    statusEl.textContent = `Next check ${formatDateTime(nextRunAt)}.`;
+  } else {
+    statusEl.textContent = 'Auto scan is on.';
+  }
+}
+
+async function saveAutoScanSettings() {
+  const enabledEl = document.getElementById('autoScanEnabled');
+  const intervalEl = document.getElementById('autoScanInterval');
+  if (!enabledEl || !intervalEl) {
+    return;
+  }
+
+  const settings = {
+    autoScanEnabled: enabledEl.checked,
+    autoScanIntervalMinutes: Number(intervalEl.value) || 120
+  };
+
+  const result = await sendMessage({ action: 'setAutoScanSettings', settings });
+  if (result?.status === 'ok') {
+    autoScanState = { ...autoScanState, ...result };
+    renderAutoScanControls();
+    showQuickToast('Auto scan settings updated', 'success');
+  } else {
+    showNotification(result?.message || 'Failed to update auto scan settings', 'error');
+  }
+}
+
+async function runAutoScanNow() {
+  const response = await sendMessage({ action: 'runAutoScanNow' });
+  if (response?.status === 'scanning') {
+    showNotification('Auto scan started', 'info');
+    startMonitoring();
+  } else if (response?.status === 'probe_only') {
+    showNotification('No follower count change detected', 'info');
+    await loadUserData();
+  } else if (response?.status === 'skipped') {
+    showNotification(`Auto check skipped: ${response.reason}`, 'warning');
+  } else if (response?.status === 'error') {
+    showNotification(response.message || 'Auto scan failed', 'error');
   }
 }
 
@@ -369,6 +451,7 @@ async function stopScan() {
         target: { tabId: tab.id },
         func: () => {
           window.xScannerShouldStop = true;
+          window.xScannerStopReason = 'manual';
         }
       });
     }
@@ -540,6 +623,7 @@ function loadStats() {
   
   chrome.storage.local.get(['users'], (result) => {
     const users = result.users || {};
+    window.__xUsersCache = users;
     const userData = users[currentUser] || {};
     
     // Extract data with null safety
@@ -659,8 +743,9 @@ function applySearch(list, type) {
  */
 function renderRecentActivity(unfollowers, newFollowers) {
   const container = document.getElementById('recentActivity');
-  
-  if (!unfollowers.length && !newFollowers.length) {
+  const probeEvents = getProbeEventsForCurrentUser();
+
+  if (!unfollowers.length && !newFollowers.length && !probeEvents.length) {
     container.innerHTML = '<div class="info-box">No recent activity. Click scan buttons to check for changes.</div>';
     return;
   }
@@ -668,7 +753,14 @@ function renderRecentActivity(unfollowers, newFollowers) {
   // Combine and sort by timestamp
   const recentActivity = [
     ...unfollowers.map(u => ({ ...u, type: 'unfollow' })),
-    ...newFollowers.map(u => ({ ...u, type: 'new' }))
+    ...newFollowers.map(u => ({ ...u, type: 'new' })),
+    ...probeEvents.map((event) => ({
+      username: currentUser,
+      name: `@${currentUser}`,
+      timestamp: event.timestamp,
+      type: 'probe',
+      probeCount: event.probeCount
+    }))
   ]
     .sort((a, b) => (b.unfollowedAt || b.timestamp || 0) - (a.unfollowedAt || a.timestamp || 0))
     .slice(0, 8);
@@ -992,11 +1084,16 @@ function renderInsights(userData) {
     html += '<div class="insights-title">📅 Scan History</div>';
     
     userData.scanHistory.slice(-5).reverse().forEach(scan => {
-      html += `<div class="insights-item">${formatTime(scan.timestamp)}: ${scan.type} scan - ${scan.count} users`;
-      if (scan.verified) {
-        html += ` (${scan.verified} verified)`;
+      const sourceLabel = scan.source === 'auto' ? 'auto' : 'manual';
+      if (scan.type === 'followers_probe') {
+        html += `<div class="insights-item">${formatTime(scan.timestamp)}: followers count probe (${sourceLabel}) - ${Number.isFinite(scan.probeCount) ? scan.probeCount : 'unknown'} shown</div>`;
+      } else {
+        html += `<div class="insights-item">${formatTime(scan.timestamp)}: ${scan.type} scan (${sourceLabel}) - ${scan.count} users`;
+        if (scan.verified) {
+          html += ` (${scan.verified} verified)`;
+        }
+        html += `</div>`;
       }
-      html += `</div>`;
     });
     
     html += '</div>';
@@ -1064,6 +1161,7 @@ function renderUserCard(user, type) {
   const isFollowing = type === 'following';
   const isFan = type === 'fans';
   const isNotFollowBack = type === 'notfollowback';
+  const isProbe = type === 'probe';
   
   // Determine card styling
   let backgroundColor, borderColor, statusText, statusColor, avatarStyle;
@@ -1100,6 +1198,11 @@ function renderUserCard(user, type) {
       statusText = 'Not following back';
       statusColor = 'rgba(255, 255, 255, 0.5)';
     }
+  } else if (isProbe) {
+    backgroundColor = 'rgba(59, 130, 246, 0.12)';
+    borderColor = 'rgba(59, 130, 246, 0.35)';
+    statusText = `Count probe${Number.isFinite(user.probeCount) ? `: ${user.probeCount}` : ''}`;
+    statusColor = '#60a5fa';
   } else {
     backgroundColor = 'rgba(255, 255, 255, 0.05)';
     borderColor = 'rgba(255, 255, 255, 0.1)';
@@ -1183,12 +1286,35 @@ function formatTime(timestamp) {
   const weeks = Math.floor(days / 7);
   const months = Math.floor(days / 30);
   
+  if (Math.abs(diff) < 120000) return 'Just now';
   if (months > 0) return `${months}mo ago`;
   if (weeks > 0) return `${weeks}w ago`;
   if (days > 0) return `${days}d ago`;
   if (hours > 0) return `${hours}h ago`;
   if (minutes > 0) return `${minutes}m ago`;
-  return 'Just now';
+  return diff >= 0 ? 'Just now' : 'soon';
+}
+
+function getProbeEventsForCurrentUser() {
+  if (!currentUser) {
+    return [];
+  }
+  const usersRoot = window.__xUsersCache || {};
+  const target = (currentUser || '').toLowerCase();
+  const key = Object.keys(usersRoot).find((item) => (item || '').toLowerCase() === target) || currentUser;
+  const userData = usersRoot[key] || {};
+  const scanHistory = userData.scanHistory || [];
+  return scanHistory.filter((entry) => entry.type === 'followers_probe').slice(-5);
+}
+
+function formatDateTime(timestamp) {
+  if (!timestamp) return 'unknown';
+  return new Date(timestamp).toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  });
 }
 
 /**
@@ -1482,6 +1608,36 @@ function setupEventListeners() {
   const exportBtn = document.getElementById('exportBtn');
   if (exportBtn) {
     exportBtn.addEventListener('click', exportData);
+  }
+
+  const autoScanEnabled = document.getElementById('autoScanEnabled');
+  if (autoScanEnabled) {
+    autoScanEnabled.addEventListener('change', () => {
+      saveAutoScanSettings().catch((error) => {
+        console.error('Auto scan toggle failed:', error);
+        showNotification('Failed to update auto scan settings', 'error');
+      });
+    });
+  }
+
+  const autoScanInterval = document.getElementById('autoScanInterval');
+  if (autoScanInterval) {
+    autoScanInterval.addEventListener('change', () => {
+      saveAutoScanSettings().catch((error) => {
+        console.error('Auto scan interval update failed:', error);
+        showNotification('Failed to update auto scan settings', 'error');
+      });
+    });
+  }
+
+  const runAutoScanNowBtn = document.getElementById('runAutoScanNowBtn');
+  if (runAutoScanNowBtn) {
+    runAutoScanNowBtn.addEventListener('click', () => {
+      runAutoScanNow().catch((error) => {
+        console.error('Run auto scan now failed:', error);
+        showNotification(error.message || 'Auto scan failed', 'error');
+      });
+    });
   }
   
   // Tab buttons

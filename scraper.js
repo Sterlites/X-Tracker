@@ -14,6 +14,7 @@
   // Set running flag
   window.xUnfollowTrackerRunning = true;
   window.xScannerShouldStop = false;
+  window.xScannerStopReason = null;
 
   // ================== Constants ==================
   const SCAN_START_TIME = Date.now();
@@ -30,6 +31,8 @@
   const EXPECTED_COVERAGE_SMALL = 0.85;
   const EXPECTED_COVERAGE_MEDIUM = 0.75;
   const EXPECTED_COVERAGE_LARGE = 0.6;
+  const STRICT_COVERAGE_SMALL = 0.96;
+  const STRICT_COVERAGE_MEDIUM = 0.93;
   const PAGE_READY_MAX_WAIT_ATTEMPTS = 60;
   const USERNAME_REGEX = /^[a-zA-Z0-9_]{1,15}$/;
 
@@ -66,6 +69,40 @@
    */
   function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Safely send runtime message without crashing scan flow
+   * @param {Object} payload - Message payload
+   * @returns {Promise<any|null>}
+   */
+  function safeSendMessage(payload) {
+    return new Promise((resolve) => {
+      try {
+        if (!chrome?.runtime?.id) {
+          resolve(null);
+          return;
+        }
+        chrome.runtime.sendMessage(payload, (response) => {
+          const err = chrome.runtime.lastError;
+          if (err) {
+            const msg = String(err.message || '').toLowerCase();
+            if (!msg.includes('extension context invalidated')) {
+              console.warn('sendMessage warning:', err.message);
+            }
+            resolve(null);
+            return;
+          }
+          resolve(response || null);
+        });
+      } catch (error) {
+        const msg = String(error?.message || '').toLowerCase();
+        if (!msg.includes('extension context invalidated')) {
+          console.warn('sendMessage failed:', error);
+        }
+        resolve(null);
+      }
+    });
   }
 
   /**
@@ -199,7 +236,8 @@
         // Check if user stopped scan
         if (window.xScannerShouldStop) {
           clearInterval(checkInterval);
-          reject(new Error('Stopped by user'));
+          const reason = window.xScannerStopReason || 'manual';
+          reject(new Error(reason === 'timeout' ? 'Scan timed out while loading page.' : 'Scan stopped by user'));
           return;
         }
 
@@ -466,6 +504,17 @@
   }
 
   /**
+   * Get stricter coverage threshold for follower accuracy
+   * @param {number} expectedCount - Expected count from page
+   * @returns {number} Strict coverage threshold
+   */
+  function getStrictCoverageThreshold(expectedCount) {
+    if (expectedCount > 5000) return EXPECTED_COVERAGE_LARGE;
+    if (expectedCount > 1000) return STRICT_COVERAGE_MEDIUM;
+    return STRICT_COVERAGE_SMALL;
+  }
+
+  /**
    * Merge current scan users with previous data to preserve details
    * @param {Array<Object>} currentUsers - Current scan users
    * @param {Array<Object>} previousUsers - Previous scan users
@@ -553,7 +602,7 @@
 
     if (expectedCount === 0) {
       updateIndicator('No users to scan');
-      chrome.runtime.sendMessage({
+      safeSendMessage({
         action: 'scanProgress',
         progress: 100,
         count: 0
@@ -609,7 +658,7 @@
       updateIndicator(`Found ${countLabel} users... (${progress}%)`);
       
       // Send progress to extension
-      chrome.runtime.sendMessage({
+      safeSendMessage({
         action: 'scanProgress',
         progress: progress,
         count: currentCount
@@ -638,7 +687,7 @@
 
     // Final progress update
     updateIndicator(`Scan complete! Found ${foundUsers.size} users`);
-    chrome.runtime.sendMessage({
+    safeSendMessage({
       action: 'scanProgress',
       progress: 100,
       count: foundUsers.size
@@ -764,6 +813,22 @@
             });
             return;
           }
+
+          // Check 3b: Stricter follower accuracy check for small/medium accounts.
+          // Prevents saving noticeably under-counted follower scans (premature stops).
+          if (scanType === 'followers' && expectedCount <= 5000) {
+            const strictMinCoverage = getStrictCoverageThreshold(expectedCount);
+            const maxAllowedGap = Math.max(8, Math.ceil(expectedCount * 0.03));
+            const actualGap = Math.max(0, expectedCount - currentUsers.length);
+
+            if (coverage < strictMinCoverage || actualGap > maxAllowedGap) {
+              resolve({
+                isValid: false,
+                reason: `Follower scan appears incomplete (${currentUsers.length}/${expectedCount}). Please retry to improve accuracy.`
+              });
+              return;
+            }
+          }
         }
 
         // Check 4: Minimum scan duration (skip for zero-count scans)
@@ -791,8 +856,9 @@
    */
   async function saveData(currentUsers, username, scanType, expectedCount) {
     return new Promise((resolve, reject) => {
-      chrome.storage.local.get(['users'], (result) => {
+      chrome.storage.local.get(['users', '_currentScanSource'], (result) => {
         const users = result.users || {};
+        const scanSource = result._currentScanSource || 'manual';
         const normalizedKey = normalizeUsername(username);
         const existingKey = Object.keys(users).find(key => normalizeUsername(key) === normalizedKey);
         const storageKey = existingKey || username;
@@ -926,6 +992,7 @@
         userData.scanHistory = userData.scanHistory || [];
         userData.scanHistory.push({
           type: scanType,
+          source: scanSource,
           count: currentUsers.length,
           expected: Number.isFinite(expectedCount) ? expectedCount : null,
           coverage: Number.isFinite(coverage) ? coverage : null,
@@ -1013,6 +1080,7 @@
     if (stopButton) {
       stopButton.addEventListener('click', () => {
         window.xScannerShouldStop = true;
+        window.xScannerStopReason = 'manual';
         stopButton.disabled = true;
         stopButton.textContent = 'Stopping...';
         updateIndicator('Stopping scan...');
@@ -1090,6 +1158,7 @@
   const scanTimeout = setTimeout(() => {
     if (!window.xScannerShouldStop) {
       window.xScannerShouldStop = true;
+      window.xScannerStopReason = 'timeout';
       console.log('Scan timeout reached - stopping');
     }
   }, MAX_SCAN_TIME_MS);
@@ -1123,7 +1192,10 @@
 
     // Check if scan was manually stopped
     if (window.xScannerShouldStop) {
-      throw new Error('Scan stopped by user');
+      const reason = window.xScannerStopReason || 'manual';
+      throw new Error(reason === 'timeout'
+        ? 'Scan timed out. Please retry and keep the followers tab active.'
+        : 'Scan stopped by user');
     }
 
     // Validate results
@@ -1144,7 +1216,7 @@
     showSuccess(users.length);
 
     // Notify background script
-    chrome.runtime.sendMessage({
+    await safeSendMessage({
       action: 'scanComplete',
       username: username,
       scanType: scanType,
@@ -1159,14 +1231,19 @@
       removeIndicator();
       window.xUnfollowTrackerRunning = false;
       window.xScannerShouldStop = false;
+      window.xScannerStopReason = null;
     }, 2000);
 
   } catch (error) {
-    console.error('Scan error:', error);
+    if ((error?.message || '').toLowerCase().includes('stopped by user')) {
+      console.warn('Scan stopped intentionally');
+    } else {
+      console.error('Scan error:', error);
+    }
     showError(error.message);
 
     // Notify background script of error
-    chrome.runtime.sendMessage({
+    await safeSendMessage({
       action: 'scanError',
       error: error.message
     });
@@ -1176,6 +1253,7 @@
       removeIndicator();
       window.xUnfollowTrackerRunning = false;
       window.xScannerShouldStop = false;
+      window.xScannerStopReason = null;
     }, 3000);
   } finally {
     // Clear the timeout

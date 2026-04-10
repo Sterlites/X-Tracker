@@ -313,6 +313,51 @@
       transition: width 0.3s;
     }
 
+    .auto-scan-panel {
+      margin-top: 8px;
+      padding: 10px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .auto-scan-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 12px;
+    }
+
+    .auto-scan-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .auto-scan-select {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 6px;
+      color: #fff;
+      padding: 6px 8px;
+      font-size: 12px;
+    }
+
+    .auto-scan-status {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    .auto-scan-run-btn {
+      background: rgba(59, 130, 246, 0.2);
+      border: 1px solid rgba(59, 130, 246, 0.5);
+      color: #93c5fd;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+
     /* Tabs */
     .tabs {
       display: flex;
@@ -730,6 +775,24 @@
       <!-- Progress Bar -->
       <div class="progress-bar" id="scanProgress" style="display: none" role="progressbar" aria-valuemin="0" aria-valuemax="100">
         <div class="progress-fill" id="scanProgressFill"></div>
+      </div>
+
+      <div class="auto-scan-panel">
+        <div class="auto-scan-row">
+          <label for="autoScanEnabled">Auto scan followers</label>
+          <input type="checkbox" id="autoScanEnabled" />
+        </div>
+        <div class="auto-scan-row">
+          <label for="autoScanInterval">Interval</label>
+          <select id="autoScanInterval" class="auto-scan-select">
+            <option value="60">1h</option>
+            <option value="120" selected>2h</option>
+            <option value="240">4h</option>
+            <option value="360">6h</option>
+          </select>
+          <button id="runAutoScanNowBtn" class="auto-scan-run-btn" title="Run auto check now">Run now</button>
+        </div>
+        <div id="autoScanStatus" class="auto-scan-status">Auto scan is off.</div>
       </div>
     </div>
   </div>

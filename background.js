@@ -7,6 +7,10 @@
 const SCAN_TIMEOUT_MS = 45000; // 45 seconds timeout for initial page load and script injection
 const SCRIPT_INJECTION_DELAY_MS = 2000; // Delay before injecting scraper script
 const MAX_RETRIES = 3; // Maximum number of retry attempts for failed operations
+const AUTO_SCAN_ALARM = 'autoFollowersScan';
+const DEFAULT_AUTO_SCAN_INTERVAL_MINUTES = 120;
+const AUTO_SCAN_FORCED_SYNC_MS = 24 * 60 * 60 * 1000;
+const AUTO_SCAN_RATE_LIMIT_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 
 /**
  * Initialize extension on installation
@@ -22,11 +26,15 @@ chrome.runtime.onInstalled.addListener(() => {
         users: {},
         userList: [],
         currentUser: null,
-        scanStatus: 'idle'
+        scanStatus: 'idle',
+        autoScanEnabled: false,
+        autoScanIntervalMinutes: DEFAULT_AUTO_SCAN_INTERVAL_MINUTES
       });
       console.log('Initialized default storage');
     }
   });
+
+  ensureAutoScanAlarm();
 });
 
 /**
@@ -36,6 +44,7 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.runtime.onStartup.addListener(() => {
   console.log('Browser started - resetting scan status');
   chrome.storage.local.set({ scanStatus: 'idle' });
+  ensureAutoScanAlarm();
 });
 
 /**
@@ -44,6 +53,13 @@ chrome.runtime.onStartup.addListener(() => {
 chrome.runtime.onSuspend.addListener(() => {
   console.log('Service worker suspending - resetting scan status');
   chrome.storage.local.set({ scanStatus: 'idle' });
+});
+
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name !== AUTO_SCAN_ALARM) {
+    return;
+  }
+  await runAutoScanCycle();
 });
 
 /**
@@ -59,7 +75,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       startScan(
         sendResponse,
         request.username,
-        request.scanType || 'followers'
+        request.scanType || 'followers',
+        { scanSource: request.scanSource || 'manual' }
       );
       return true; // Keep channel open for async response
 
@@ -83,6 +100,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleForceStopScan();
       return false;
 
+    case 'getAutoScanSettings':
+      getAutoScanSettings(sendResponse);
+      return true;
+
+    case 'setAutoScanSettings':
+      setAutoScanSettings(sendResponse, request.settings || {});
+      return true;
+
+    case 'runAutoScanNow':
+      runAutoScanCycle(true)
+        .then((result) => sendResponse(result))
+        .catch((error) =>
+          sendResponse({ status: 'error', message: error.message || 'Auto scan failed' })
+        );
+      return true;
+
     default:
       console.warn('Unknown message action:', request.action);
       return false;
@@ -95,9 +128,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
  */
 function handleScanComplete(request) {
   console.log('Scan completed successfully');
-  chrome.storage.local.set({
-    scanStatus: 'complete',
-    lastScanTime: Date.now()
+  chrome.storage.local.get(['_currentScanSource'], (result) => {
+    const now = Date.now();
+    const payload = {
+      scanStatus: 'complete',
+      lastScanTime: now
+    };
+    if (result._currentScanSource === 'auto') {
+      payload.autoScanLastRunAt = now;
+      payload.autoScanLastSuccessAt = now;
+      payload.autoScanLastError = null;
+    }
+    chrome.storage.local.set(payload);
   });
 }
 
@@ -107,9 +149,21 @@ function handleScanComplete(request) {
  */
 function handleScanError(request) {
   console.error('Scan error:', request.error);
-  chrome.storage.local.set({
-    lastError: request.error,
-    scanStatus: 'error'
+  chrome.storage.local.get(['_currentScanSource'], (result) => {
+    const errorMessage = request.error || 'Unknown scan error';
+    const now = Date.now();
+    const payload = {
+      lastError: errorMessage,
+      scanStatus: 'error'
+    };
+    if (result._currentScanSource === 'auto') {
+      payload.autoScanLastRunAt = now;
+      payload.autoScanLastError = errorMessage;
+      if (isRateLimitError(errorMessage)) {
+        payload.autoScanCooldownUntil = now + AUTO_SCAN_RATE_LIMIT_COOLDOWN_MS;
+      }
+    }
+    chrome.storage.local.set(payload);
   });
 }
 
@@ -137,7 +191,13 @@ function handleForceStopScan() {
  * @param {string} username - X username to scan
  * @param {string} scanType - Type of scan ('followers' or 'following')
  */
-async function startScan(sendResponse, username, scanType) {
+async function startScan(sendResponse, username, scanType, options = {}) {
+  const respond = (payload) => {
+    if (typeof sendResponse === 'function') {
+      sendResponse(payload);
+    }
+  };
+
   try {
     // Get username from storage if not provided
     let targetUsername = username;
@@ -150,7 +210,7 @@ async function startScan(sendResponse, username, scanType) {
 
     // Validate username
     if (!targetUsername) {
-      sendResponse({
+      respond({
         status: 'error',
         message: 'No username provided. Please add an account first.'
       });
@@ -174,7 +234,7 @@ async function startScan(sendResponse, username, scanType) {
     });
 
     if (!activeTab?.id) {
-      sendResponse({
+      respond({
         status: 'error',
         message: 'No active tab found. Please open a browser tab first.'
       });
@@ -189,6 +249,7 @@ async function startScan(sendResponse, username, scanType) {
         {
           scanStatus: 'scanning',
           currentScanType: scanType,
+          _currentScanSource: options.scanSource || 'manual',
           _currentScanTabId: tabId,
           _currentScanUsername: targetUsername,
           _scanStartTime: Date.now()
@@ -232,7 +293,7 @@ async function startScan(sendResponse, username, scanType) {
 
         // Wait a moment for page to stabilize, then inject scraper
         setTimeout(() => {
-          injectScraperScript(tabId, sendResponse);
+          injectScraperScript(tabId, respond);
         }, SCRIPT_INJECTION_DELAY_MS);
       }
     };
@@ -247,7 +308,7 @@ async function startScan(sendResponse, username, scanType) {
         chrome.tabs.onUpdated.removeListener(pageLoadListener);
         listenerAttached = false;
         chrome.storage.local.set({ scanStatus: 'idle' });
-        sendResponse({
+        respond({
           status: 'error',
           message: 'Scan timeout - page took too long to load. Please retry.'
         });
@@ -257,7 +318,7 @@ async function startScan(sendResponse, username, scanType) {
   } catch (error) {
     console.error('Error starting scan:', error);
     chrome.storage.local.set({ scanStatus: 'error' });
-    sendResponse({
+    respond({
       status: 'error',
       message: error.message || 'Failed to start scan. Please try again.'
     });
@@ -312,4 +373,311 @@ async function getStoredStats(sendResponse) {
       lastCheck: userData.lastFollowersCheck || userData.lastFollowingCheck
     });
   });
+}
+
+async function getAutoScanSettings(sendResponse) {
+  chrome.storage.local.get(
+    [
+      'autoScanEnabled',
+      'autoScanIntervalMinutes',
+      'autoScanNextRunAt',
+      'autoScanCooldownUntil',
+      'autoScanLastRunAt',
+      'autoScanLastCountProbeAt',
+      'autoScanLastProfileFollowerCount',
+      'autoScanLastError'
+    ],
+    (result) => {
+      sendResponse({
+        autoScanEnabled: !!result.autoScanEnabled,
+        autoScanIntervalMinutes:
+          Number(result.autoScanIntervalMinutes) || DEFAULT_AUTO_SCAN_INTERVAL_MINUTES,
+        autoScanNextRunAt: result.autoScanNextRunAt || null,
+        autoScanCooldownUntil: result.autoScanCooldownUntil || null,
+        autoScanLastRunAt: result.autoScanLastRunAt || null,
+        autoScanLastCountProbeAt: result.autoScanLastCountProbeAt || null,
+        autoScanLastProfileFollowerCount: Number.isFinite(result.autoScanLastProfileFollowerCount)
+          ? result.autoScanLastProfileFollowerCount
+          : null,
+        autoScanLastError: result.autoScanLastError || null
+      });
+    }
+  );
+}
+
+async function setAutoScanSettings(sendResponse, settings) {
+  const autoScanEnabled = !!settings.autoScanEnabled;
+  const interval = Number(settings.autoScanIntervalMinutes) || DEFAULT_AUTO_SCAN_INTERVAL_MINUTES;
+  const autoScanIntervalMinutes = Math.min(24 * 60, Math.max(60, interval));
+  const nextRunAt = Date.now() + autoScanIntervalMinutes * 60 * 1000;
+
+  chrome.storage.local.set(
+    {
+      autoScanEnabled,
+      autoScanIntervalMinutes,
+      autoScanNextRunAt: autoScanEnabled ? nextRunAt : null
+    },
+    async () => {
+      if (chrome.runtime.lastError) {
+        sendResponse({ status: 'error', message: chrome.runtime.lastError.message });
+        return;
+      }
+      await ensureAutoScanAlarm();
+      sendResponse({
+        status: 'ok',
+        autoScanEnabled,
+        autoScanIntervalMinutes,
+        autoScanNextRunAt: autoScanEnabled ? nextRunAt : null
+      });
+    }
+  );
+}
+
+async function ensureAutoScanAlarm() {
+  const config = await getStorage([
+    'autoScanEnabled',
+    'autoScanIntervalMinutes',
+    'autoScanCooldownUntil'
+  ]);
+  await chrome.alarms.clear(AUTO_SCAN_ALARM);
+
+  if (!config.autoScanEnabled) {
+    return;
+  }
+
+  const intervalMinutes =
+    Number(config.autoScanIntervalMinutes) || DEFAULT_AUTO_SCAN_INTERVAL_MINUTES;
+  const now = Date.now();
+  const cooldownUntil = Number(config.autoScanCooldownUntil) || 0;
+  const delayMinutes = cooldownUntil > now
+    ? Math.max(1, Math.ceil((cooldownUntil - now) / 60000))
+    : Math.max(1, intervalMinutes);
+
+  await chrome.alarms.create(AUTO_SCAN_ALARM, {
+    delayInMinutes: delayMinutes,
+    periodInMinutes: Math.max(1, intervalMinutes)
+  });
+
+  await setStorage({
+    autoScanNextRunAt: now + delayMinutes * 60 * 1000
+  });
+}
+
+async function runAutoScanCycle(forceRun = false) {
+  const state = await getStorage([
+    'autoScanEnabled',
+    'autoScanIntervalMinutes',
+    'autoScanCooldownUntil',
+    'scanStatus',
+    'currentUser',
+    'userList',
+    'users',
+    'autoScanLastRunAt'
+  ]);
+
+  if (!forceRun && !state.autoScanEnabled) {
+    return { status: 'skipped', reason: 'disabled' };
+  }
+  if (state.scanStatus === 'scanning') {
+    return { status: 'skipped', reason: 'scan_in_progress' };
+  }
+
+  const now = Date.now();
+  const cooldownUntil = Number(state.autoScanCooldownUntil) || 0;
+  if (!forceRun && cooldownUntil > now) {
+    await ensureAutoScanAlarm();
+    return { status: 'skipped', reason: 'cooldown' };
+  }
+
+  const username = resolveTargetUser(state);
+  if (!username) {
+    return { status: 'skipped', reason: 'no_user' };
+  }
+
+  const tab = await getUsableXTab();
+  if (!tab?.id) {
+    return { status: 'skipped', reason: 'no_x_tab' };
+  }
+
+  const lastFollowersCount = getLastFollowersCount(state.users || {}, username);
+  const probeResult = await probeFollowerCount(tab.id, username);
+  const probeEvent = {
+    timestamp: now,
+    type: 'followers_probe',
+    source: 'auto',
+    probeCount: Number.isFinite(probeResult.count) ? probeResult.count : null,
+    countChanged:
+      Number.isFinite(probeResult.count) && Number.isFinite(lastFollowersCount)
+        ? probeResult.count !== lastFollowersCount
+        : null
+  };
+
+  await setStorage({
+    autoScanLastRunAt: now,
+    autoScanLastCountProbeAt: now,
+    autoScanLastProfileFollowerCount: probeEvent.probeCount
+  });
+  await appendProbeEvent(username, probeEvent);
+
+  const shouldForceSync =
+    !state.autoScanLastRunAt || now - Number(state.autoScanLastRunAt) >= AUTO_SCAN_FORCED_SYNC_MS;
+  const shouldScan =
+    forceRun ||
+    shouldForceSync ||
+    !Number.isFinite(probeResult.count) ||
+    !Number.isFinite(lastFollowersCount) ||
+    probeResult.count !== lastFollowersCount;
+
+  if (!shouldScan) {
+    await ensureAutoScanAlarm();
+    return { status: 'probe_only', count: probeResult.count };
+  }
+
+  const startResponse = await startScanWithPromise(username, 'followers', 'auto');
+  await ensureAutoScanAlarm();
+  return startResponse;
+}
+
+async function appendProbeEvent(username, event) {
+  const data = await getStorage(['users']);
+  const users = data.users || {};
+  const normalized = normalizeUsername(username);
+  const existingKey = Object.keys(users).find((key) => normalizeUsername(key) === normalized);
+  const storageKey = existingKey || username;
+  const userData = users[storageKey] || {
+    followers: [],
+    following: [],
+    unfollowers: [],
+    newFollowers: [],
+    fansList: [],
+    notFollowingBack: [],
+    scanCount: 0,
+    scanHistory: []
+  };
+  userData.scanHistory = userData.scanHistory || [];
+  userData.scanHistory.push(event);
+  if (userData.scanHistory.length > 20) {
+    userData.scanHistory = userData.scanHistory.slice(-20);
+  }
+  users[storageKey] = userData;
+  await setStorage({ users });
+}
+
+function resolveTargetUser(state) {
+  if (state.currentUser) {
+    return state.currentUser;
+  }
+  if (Array.isArray(state.userList) && state.userList.length) {
+    return state.userList[0];
+  }
+  return null;
+}
+
+function normalizeUsername(value) {
+  return (value || '').replace(/^@/, '').trim().toLowerCase();
+}
+
+function getLastFollowersCount(users, username) {
+  const normalized = normalizeUsername(username);
+  const key = Object.keys(users || {}).find((item) => normalizeUsername(item) === normalized);
+  if (!key) {
+    return null;
+  }
+  return Number.isFinite(users[key].lastFollowersCount) ? users[key].lastFollowersCount : null;
+}
+
+async function getUsableXTab() {
+  const xTabs = await chrome.tabs.query({ url: '*://x.com/*' });
+  if (xTabs.length) {
+    return xTabs[0];
+  }
+  const twitterTabs = await chrome.tabs.query({ url: '*://twitter.com/*' });
+  return twitterTabs[0] || null;
+}
+
+async function startScanWithPromise(username, scanType, scanSource) {
+  return new Promise((resolve) => {
+    startScan(resolve, username, scanType, { scanSource });
+  });
+}
+
+async function probeFollowerCount(tabId, username) {
+  const targetUrl = `https://x.com/${encodeURIComponent(username.replace('@', ''))}`;
+  await chrome.tabs.update(tabId, { url: targetUrl });
+
+  await waitForTabComplete(tabId, SCAN_TIMEOUT_MS);
+  await sleep(1200);
+
+  const [result] = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: () => {
+      const parseCount = (text) => {
+        if (!text) return null;
+        const normalized = text.replace(/,/g, '').trim();
+        const match = normalized.match(/(\d+(?:\.\d+)?)(\s*[KMB])?/i);
+        if (!match) return null;
+        let value = parseFloat(match[1]);
+        const suffix = (match[2] || '').trim().toUpperCase();
+        if (suffix === 'K') value *= 1000;
+        if (suffix === 'M') value *= 1000000;
+        if (suffix === 'B') value *= 1000000000;
+        return Number.isFinite(value) ? Math.round(value) : null;
+      };
+
+      const links = Array.from(document.querySelectorAll('a[href*="/followers"]'));
+      const candidates = [];
+      links.forEach((link) => {
+        const text = (link.innerText || link.textContent || '').trim();
+        const fromText = parseCount(text);
+        if (fromText !== null) candidates.push(fromText);
+        const aria = parseCount(link.getAttribute('aria-label') || '');
+        if (aria !== null) candidates.push(aria);
+      });
+      return {
+        count: candidates.length ? Math.max(...candidates) : null
+      };
+    }
+  });
+
+  return result?.result || { count: null };
+}
+
+function waitForTabComplete(tabId, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    let done = false;
+    const timer = setTimeout(() => {
+      if (done) return;
+      done = true;
+      chrome.tabs.onUpdated.removeListener(listener);
+      reject(new Error('Timeout waiting for tab load'));
+    }, timeoutMs);
+
+    const listener = (updatedTabId, changeInfo) => {
+      if (updatedTabId !== tabId || changeInfo.status !== 'complete' || done) {
+        return;
+      }
+      done = true;
+      clearTimeout(timer);
+      chrome.tabs.onUpdated.removeListener(listener);
+      resolve();
+    };
+    chrome.tabs.onUpdated.addListener(listener);
+  });
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRateLimitError(message) {
+  const text = (message || '').toLowerCase();
+  return text.includes('rate limit') || text.includes('too many requests');
+}
+
+function getStorage(keys) {
+  return new Promise((resolve) => chrome.storage.local.get(keys, resolve));
+}
+
+function setStorage(value) {
+  return new Promise((resolve) => chrome.storage.local.set(value, resolve));
 }
