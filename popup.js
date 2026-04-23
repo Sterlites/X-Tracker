@@ -1284,11 +1284,10 @@ function formatTime(timestamp) {
   const minutes = Math.floor(seconds / 60);
   const hours = Math.floor(minutes / 60);
   
-  if (Math.abs(diff) < 120000) return 'Just now';
+  if (Math.abs(diff) < 60000) return 'Just now';
   
-  // Show relative time for less than 24 hours
-  if (hours < 24) {
-    if (hours > 0) return `${hours}h ago`;
+  // Show relative time for less than 1 hour
+  if (hours < 1) {
     if (minutes > 0) return `${minutes}m ago`;
     return 'Just now';
   }
