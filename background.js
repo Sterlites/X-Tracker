@@ -85,20 +85,28 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       return true; // Keep channel open for async response
 
     case 'scanComplete':
-      handleScanComplete(request);
-      return false;
+      handleScanComplete(request)
+        .then(() => sendResponse({ status: 'ok' }))
+        .catch((error) => sendResponse({ status: 'error', message: error.message }));
+      return true;
 
     case 'scanError':
-      handleScanError(request);
-      return false;
+      handleScanError(request)
+        .then(() => sendResponse({ status: 'ok' }))
+        .catch((error) => sendResponse({ status: 'error', message: error.message }));
+      return true;
 
     case 'scanProgress':
-      handleScanProgress(request);
-      return false;
+      handleScanProgress(request)
+        .then(() => sendResponse({ status: 'ok' }))
+        .catch((error) => sendResponse({ status: 'error', message: error.message }));
+      return true;
 
     case 'forceStopScan':
-      handleForceStopScan();
-      return false;
+      handleForceStopScan()
+        .then(() => sendResponse({ status: 'ok' }))
+        .catch((error) => sendResponse({ status: 'error', message: error.message }));
+      return true;
 
     case 'getAutoScanSettings':
       getAutoScanSettings(sendResponse);
@@ -126,53 +134,55 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
  * Handle scan completion
  * @param {Object} request - Request object containing scan results
  */
-function handleScanComplete(request) {
+async function handleScanComplete(request) {
   console.log('Scan completed successfully');
-  chrome.storage.local.get(['_currentScanSource'], (result) => {
-    const now = Date.now();
-    const payload = {
-      scanStatus: 'complete',
-      lastScanTime: now
-    };
-    if (result._currentScanSource === 'auto') {
-      payload.autoScanLastRunAt = now;
-      payload.autoScanLastSuccessAt = now;
-      payload.autoScanLastError = null;
-    }
-    chrome.storage.local.set(payload);
-  });
+  const result = await getStorage(['_currentScanSource']);
+  const now = Date.now();
+  const payload = {
+    scanStatus: 'complete',
+    lastScanTime: now
+  };
+  
+  if (result._currentScanSource === 'auto') {
+    payload.autoScanLastRunAt = now;
+    payload.autoScanLastSuccessAt = now;
+    payload.autoScanLastError = null;
+  }
+  
+  await setStorage(payload);
 }
 
 /**
  * Handle scan error
  * @param {Object} request - Request object containing error details
  */
-function handleScanError(request) {
+async function handleScanError(request) {
   console.error('Scan error:', request.error);
-  chrome.storage.local.get(['_currentScanSource'], (result) => {
-    const errorMessage = request.error || 'Unknown scan error';
-    const now = Date.now();
-    const payload = {
-      lastError: errorMessage,
-      scanStatus: 'error'
-    };
-    if (result._currentScanSource === 'auto') {
-      payload.autoScanLastRunAt = now;
-      payload.autoScanLastError = errorMessage;
-      if (isRateLimitError(errorMessage)) {
-        payload.autoScanCooldownUntil = now + AUTO_SCAN_RATE_LIMIT_COOLDOWN_MS;
-      }
+  const result = await getStorage(['_currentScanSource']);
+  const errorMessage = request.error || 'Unknown scan error';
+  const now = Date.now();
+  const payload = {
+    lastError: errorMessage,
+    scanStatus: 'error'
+  };
+  
+  if (result._currentScanSource === 'auto') {
+    payload.autoScanLastRunAt = now;
+    payload.autoScanLastError = errorMessage;
+    if (isRateLimitError(errorMessage)) {
+      payload.autoScanCooldownUntil = now + AUTO_SCAN_RATE_LIMIT_COOLDOWN_MS;
     }
-    chrome.storage.local.set(payload);
-  });
+  }
+  
+  await setStorage(payload);
 }
 
 /**
  * Handle scan progress update
  * @param {Object} request - Request object containing progress percentage
  */
-function handleScanProgress(request) {
-  chrome.storage.local.set({
+async function handleScanProgress(request) {
+  await setStorage({
     scanProgress: request.progress
   });
 }
@@ -180,9 +190,9 @@ function handleScanProgress(request) {
 /**
  * Handle force stop scan request
  */
-function handleForceStopScan() {
+async function handleForceStopScan() {
   console.log('Force stopping scan');
-  chrome.storage.local.set({ scanStatus: 'idle' });
+  await setStorage({ scanStatus: 'idle' });
 }
 
 /**
