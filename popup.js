@@ -1250,6 +1250,7 @@ function renderUserCard(user, type) {
             ${followsBackBadge}
           </div>
           <div class="user-username">@${escapeHtml(user.username || 'unknown')}</div>
+          ${isUnfollow && user.firstSeenAt ? `<div style="font-size: 10px; color: rgba(255,255,255,0.4); margin-top: 2px">Following since ${new Date(user.firstSeenAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}</div>` : ''}
           ${bio}
         </div>
       </div>
@@ -1282,17 +1283,27 @@ function formatTime(timestamp) {
   const seconds = Math.floor(diff / 1000);
   const minutes = Math.floor(seconds / 60);
   const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-  const weeks = Math.floor(days / 7);
-  const months = Math.floor(days / 30);
   
   if (Math.abs(diff) < 120000) return 'Just now';
-  if (months > 0) return `${months}mo ago`;
-  if (weeks > 0) return `${weeks}w ago`;
-  if (days > 0) return `${days}d ago`;
-  if (hours > 0) return `${hours}h ago`;
-  if (minutes > 0) return `${minutes}m ago`;
-  return diff >= 0 ? 'Just now' : 'soon';
+  
+  // Show relative time for less than 24 hours
+  if (hours < 24) {
+    if (hours > 0) return `${hours}h ago`;
+    if (minutes > 0) return `${minutes}m ago`;
+    return 'Just now';
+  }
+  
+  // Show absolute date for 24 hours or more
+  const date = new Date(timestamp);
+  const now = new Date();
+  const options = { month: 'short', day: 'numeric' };
+  
+  // Add year if not current year
+  if (date.getFullYear() !== now.getFullYear()) {
+    options.year = 'numeric';
+  }
+  
+  return date.toLocaleDateString([], options);
 }
 
 function getProbeEventsForCurrentUser() {

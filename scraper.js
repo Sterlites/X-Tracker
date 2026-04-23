@@ -25,7 +25,7 @@
   const PAUSE_EVERY_N_SCROLLS = 20;
   const PAUSE_DURATION_MS = 2000;
   const MAX_SCROLLS = 500;
-  const STABILITY_THRESHOLD = 12;
+  const STABILITY_THRESHOLD = 7;
   const MIN_USERS_FOUND = 5;
   const MIN_SCAN_DURATION_MS = 5000;
   const EXPECTED_COVERAGE_SMALL = 0.85;
@@ -596,6 +596,7 @@
     let stabilityCounter = 0;
     let scrollCount = 0;
     let scrollDelay = BASE_SCROLL_DELAY_MS;
+    let hardStallCycles = 0;
 
     const { primary, timeline } = getListContainer();
     const container = timeline || primary || document;
@@ -648,10 +649,14 @@
       const newUsersThisCycle = collectFromCells();
       const currentCount = foundUsers.size;
       
-      // Calculate progress
-      const progress = expectedCount
+      // Calculate progress. Blend count-based progress with stability progress so
+      // users do not see a low stuck percentage when the list has effectively ended.
+      const expectedProgress = expectedCount
         ? Math.min(95, Math.round((currentCount / expectedCount) * 100))
-        : Math.min(95, Math.round((scrollCount / MAX_SCROLLS) * 100));
+        : 0;
+      const scrollProgress = Math.min(95, Math.round((scrollCount / MAX_SCROLLS) * 100));
+      const stabilityProgress = Math.min(95, Math.round((stabilityCounter / STABILITY_THRESHOLD) * 95));
+      const progress = Math.max(expectedProgress, scrollProgress, stabilityProgress);
       
       // Update UI
       const countLabel = expectedCount ? `${currentCount}/${expectedCount}` : `${currentCount}`;
@@ -667,14 +672,22 @@
       // Check if we found new users
       if (newUsersThisCycle === 0 && !hadNewCells && currentCount === beforeFoundCount) {
         stabilityCounter++;
+        hardStallCycles++;
         scrollDelay = Math.min(MAX_SCROLL_DELAY_MS, Math.round(scrollDelay * 1.25));
       } else {
         stabilityCounter = 0;
+        hardStallCycles = 0;
         scrollDelay = Math.max(BASE_SCROLL_DELAY_MS, Math.round(scrollDelay * 0.9));
       }
 
       if (expectedCount && currentCount >= expectedCount && stabilityCounter >= 2) {
         console.log('Reached expected count, finishing early');
+        break;
+      }
+
+      // If the page is clearly exhausted (repeated no-growth cycles), finish early.
+      if (hardStallCycles >= 4) {
+        console.log('No new users for multiple cycles, finishing scan');
         break;
       }
 
