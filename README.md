@@ -1,4 +1,4 @@
-# X Tracker - Unfollow & Social Media Monitoring Extension 🔍
+# X Tracker - Unfollow & Social Media Monitoring Side Panel 🔍
 
 <div align="center">
 
@@ -70,13 +70,13 @@
 <div align="center">
   
 ### Dashboard View
-<img src="https://github.com/user-attachments/assets/55441a6a-962a-480d-87a3-75006219504d" alt="Dashboard View" width="450">
+<img src="screenshots/dashboard.png" alt="Dashboard View" width="450">
 
 ### Unfollowers View
-<img src="https://github.com/user-attachments/assets/18c8b561-1029-42a2-987f-019f5209442d" alt="Unfollowers View" width="450">
+<img src="screenshots/unfollowers.png" alt="Unfollowers View" width="450">
 
 ### Multi-Account Support
-<img src="https://github.com/user-attachments/assets/0e507063-8362-4483-9c38-01504a761102" alt="Multi-Account View" width="450">
+<img src="screenshots/multi_account.png" alt="Multi-Account View" width="450">
 
 </div>
 
@@ -129,7 +129,7 @@
 
 ### Initial Setup
 1. **Login to X**: Ensure you're logged into X in your browser
-2. **Click Extension Icon**: Click the extension icon in your toolbar
+2. **Open Side Panel**: Click the extension icon in your toolbar to open the side panel
 3. **Add Account**: Use the "+" button to add the account you want to track
 4. **Enter Username**: Type your X username (without @ symbol)
 
@@ -279,7 +279,7 @@
 ### Common Issues
 
 #### Extension Not Working
-**Problem**: The extension doesn't respond or shows errors
+**Problem**: The side panel doesn't respond or shows errors
 **Solution**:
 - Check if you're logged into X in your browser
 - Verify your username is correctly added to the extension
@@ -312,7 +312,7 @@
 - Some accounts might be temporarily invisible due to X's systems
 
 #### Data Not Saving
-**Problem**: Stats reset after browser restart
+**Problem**: Stats reset after browser restart or side panel reload
 **Solution**:
 - Check if browser has storage permissions enabled
 - Try reloading the extension from chrome://extensions/
@@ -333,7 +333,7 @@
 X-Tracker/
 ├── manifest.json          # Extension configuration and metadata
 ├── background.js          # Background service for scanning operations
-├── popup.html             # User interface for the extension popup
+├── popup.html             # User interface for the extension side panel
 ├── popup.js               # Frontend logic and UI interactions
 ├── scraper.js             # Core scraping functionality
 ├── README.md              # This documentation file
@@ -341,8 +341,10 @@ X-Tracker/
 │   ├── icon16.png         # Small icon for browser extensions
 │   ├── icon48.png         # Medium icon for browser extensions
 │   └── icon128.png        # Large icon for browser extensions
-└── screenshots/
-    └── preview.png        # Extension preview image
+├── screenshots/
+│   ├── dashboard.png      # Dashboard view screenshot
+│   ├── unfollowers.png    # Unfollowers view screenshot
+│   └── multi_account.png  # Multi-account support screenshot
 ```
 
 ---
