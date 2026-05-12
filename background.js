@@ -37,6 +37,9 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 
   ensureAutoScanAlarm();
+
+  // Set side panel behavior
+  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch((error) => console.error(error));
 });
 
 /**
