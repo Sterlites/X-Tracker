@@ -35,6 +35,10 @@
   const STRICT_COVERAGE_MEDIUM = 0.93;
   const PAGE_READY_MAX_WAIT_ATTEMPTS = 60;
   const USERNAME_REGEX = /^[a-zA-Z0-9_]{1,15}$/;
+  const RELATIONSHIP_MODEL_VERSION = 2;
+  const MAX_RELATIONSHIP_EVENTS_PER_HANDLE = 40;
+  const MAX_SNAPSHOTS = 400;
+  const MAX_SCAN_HISTORY = 200;
 
   const RESERVED_PATHS = new Set([
     'i',
@@ -590,6 +594,248 @@
     });
   }
 
+  function ensureRelationshipModel(userData, now = Date.now()) {
+    userData.relationshipModelVersion = RELATIONSHIP_MODEL_VERSION;
+    userData.relationshipsByHandle = userData.relationshipsByHandle || {};
+    userData.snapshots = Array.isArray(userData.snapshots) ? userData.snapshots : [];
+    userData.refollowers = Array.isArray(userData.refollowers) ? userData.refollowers : [];
+
+    seedRelationshipEvents(userData, userData.unfollowers || [], 'unfollowed', 'unfollowedAt', now);
+    seedRelationshipEvents(
+      userData,
+      (userData.newFollowers || []).filter(user => !user.refollowed),
+      'followed',
+      'timestamp',
+      now
+    );
+    seedRelationshipEvents(userData, userData.refollowers || [], 'refollowed', 'timestamp', now);
+
+    Object.values(userData.relationshipsByHandle).forEach(record => {
+      if (!Array.isArray(record.events)) {
+        record.events = [];
+      }
+      record.events = record.events
+        .filter(event => event && event.type && Number.isFinite(event.at))
+        .sort((a, b) => a.at - b.at)
+        .slice(-MAX_RELATIONSHIP_EVENTS_PER_HANDLE);
+    });
+  }
+
+  function seedRelationshipEvents(userData, users, eventType, timestampKey, fallbackTimestamp) {
+    users.forEach(user => {
+      const at = Number(user?.[timestampKey]);
+      if (!Number.isFinite(at)) {
+        return;
+      }
+      const record = upsertRelationshipRecord(userData, user, fallbackTimestamp);
+      if (!record) {
+        return;
+      }
+
+      if (!record.events.some(event => event.type === eventType && event.at === at)) {
+        record.events.push({
+          type: eventType,
+          at,
+          scanId: user.scanId || 'legacy',
+          source: 'legacy'
+        });
+      }
+    });
+  }
+
+  function getRelationshipRecord(userData, username) {
+    const key = normalizeUsername(username);
+    if (!key || !userData.relationshipsByHandle) {
+      return null;
+    }
+    return userData.relationshipsByHandle[key] || null;
+  }
+
+  function upsertRelationshipRecord(userData, user, now = Date.now()) {
+    const key = normalizeUsername(user?.username);
+    if (!key) {
+      return null;
+    }
+
+    userData.relationshipsByHandle = userData.relationshipsByHandle || {};
+    const previous = userData.relationshipsByHandle[key] || {};
+    const record = {
+      username: key,
+      name: user?.name || previous.name || key,
+      bio: user?.bio || previous.bio || '',
+      avatar: user?.avatar || previous.avatar || '',
+      verified: typeof user?.verified === 'boolean' ? user.verified : !!previous.verified,
+      profileUrl: user?.profileUrl || previous.profileUrl || `https://x.com/${key}`,
+      firstSeenAt: previous.firstSeenAt || user?.firstSeenAt || user?.timestamp || now,
+      lastSeenAt: now,
+      current: {
+        followsYou: !!previous.current?.followsYou,
+        youFollow: !!previous.current?.youFollow
+      },
+      events: Array.isArray(previous.events) ? previous.events : []
+    };
+
+    userData.relationshipsByHandle[key] = record;
+    return record;
+  }
+
+  function addRelationshipEvent(record, event) {
+    if (!record || !event?.type || !Number.isFinite(event.at)) {
+      return;
+    }
+
+    const duplicate = record.events.some(existing =>
+      existing.type === event.type &&
+      existing.scanId === event.scanId &&
+      Math.abs(existing.at - event.at) < 1000
+    );
+
+    if (!duplicate) {
+      record.events.push(event);
+      record.events = record.events
+        .sort((a, b) => a.at - b.at)
+        .slice(-MAX_RELATIONSHIP_EVENTS_PER_HANDLE);
+    }
+  }
+
+  function hasFollowerLoss(record) {
+    return !!record?.events?.some(event =>
+      event.type === 'unfollowed' || event.type === 'reunfollowed'
+    );
+  }
+
+  function applyRelationshipDiff(userData, scanType, currentUsers, previousUsers, now, scanId, source, hasBaseline) {
+    const currentMap = createUserMap(currentUsers);
+    const previousMap = createUserMap(previousUsers);
+    const result = {
+      gained: [],
+      lost: [],
+      refollowed: [],
+      relost: [],
+      followingAdded: [],
+      followingRemoved: []
+    };
+
+    currentMap.forEach((user, key) => {
+      const existing = getRelationshipRecord(userData, key);
+      if (existing) {
+        const record = upsertRelationshipRecord(userData, user, now);
+        if (scanType === 'followers') {
+          record.current.followsYou = true;
+        } else {
+          record.current.youFollow = true;
+        }
+      }
+    });
+
+    previousMap.forEach((user, key) => {
+      const existing = getRelationshipRecord(userData, key);
+      if (existing && currentMap.has(key)) {
+        const record = upsertRelationshipRecord(userData, currentMap.get(key) || user, now);
+        if (scanType === 'followers') {
+          record.current.followsYou = true;
+        } else {
+          record.current.youFollow = true;
+        }
+      }
+    });
+
+    if (!hasBaseline) {
+      return result;
+    }
+
+    currentMap.forEach((user, key) => {
+      if (previousMap.has(key)) {
+        return;
+      }
+
+      const record = upsertRelationshipRecord(userData, user, now);
+      if (scanType === 'followers') {
+        const eventType = hasFollowerLoss(record) ? 'refollowed' : 'followed';
+        record.current.followsYou = true;
+        addRelationshipEvent(record, {
+          type: eventType,
+          at: now,
+          scanId,
+          scanType,
+          source
+        });
+        result.gained.push(key);
+        if (eventType === 'refollowed') {
+          result.refollowed.push(key);
+        }
+      } else {
+        record.current.youFollow = true;
+        addRelationshipEvent(record, {
+          type: 'you_followed',
+          at: now,
+          scanId,
+          scanType,
+          source
+        });
+        result.followingAdded.push(key);
+      }
+    });
+
+    previousMap.forEach((user, key) => {
+      if (currentMap.has(key)) {
+        return;
+      }
+
+      const record = upsertRelationshipRecord(userData, user, now);
+      if (scanType === 'followers') {
+        const eventType = hasFollowerLoss(record) ? 'reunfollowed' : 'unfollowed';
+        record.current.followsYou = false;
+        addRelationshipEvent(record, {
+          type: eventType,
+          at: now,
+          scanId,
+          scanType,
+          source
+        });
+        result.lost.push(key);
+        if (eventType === 'reunfollowed') {
+          result.relost.push(key);
+        }
+      } else {
+        record.current.youFollow = false;
+        addRelationshipEvent(record, {
+          type: 'you_unfollowed',
+          at: now,
+          scanId,
+          scanType,
+          source
+        });
+        result.followingRemoved.push(key);
+      }
+    });
+
+    return result;
+  }
+
+  function createUserMap(users) {
+    const map = new Map();
+    (users || []).forEach(user => {
+      const key = normalizeUsername(user?.username);
+      if (key) {
+        map.set(key, user);
+      }
+    });
+    return map;
+  }
+
+  function appendSnapshot(userData, snapshot) {
+    userData.snapshots = Array.isArray(userData.snapshots) ? userData.snapshots : [];
+    userData.snapshots.push(snapshot);
+    if (userData.snapshots.length > MAX_SNAPSHOTS) {
+      userData.snapshots = userData.snapshots.slice(-MAX_SNAPSHOTS);
+    }
+  }
+
+  function makeScanId(scanType, timestamp) {
+    return `${scanType}-${timestamp}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+
   /**
    * Wait for new user cells to load after a scroll
    * @param {Element} container - Container being observed
@@ -936,15 +1182,20 @@
           following: [],
           unfollowers: [],
           newFollowers: [],
+          refollowers: [],
           fansList: [],
           notFollowingBack: [],
           scanCount: 0,
           lastFollowersCheck: null,
           lastFollowingCheck: null,
-          scanHistory: []
+          scanHistory: [],
+          snapshots: [],
+          relationshipsByHandle: {},
+          relationshipModelVersion: RELATIONSHIP_MODEL_VERSION
         };
 
         const now = Date.now();
+        const scanId = makeScanId(scanType, now);
         const coverage = expectedCount
           ? Number((currentUsers.length / expectedCount).toFixed(3))
           : (expectedCount === 0 && currentUsers.length === 0 ? 1 : null);
@@ -957,11 +1208,32 @@
         const listPageExpected = Number.isFinite(metadata.listPageExpected)
           ? metadata.listPageExpected
           : null;
+        let relationshipDelta = {
+          gained: [],
+          lost: [],
+          refollowed: [],
+          relost: [],
+          followingAdded: [],
+          followingRemoved: []
+        };
+
+        ensureRelationshipModel(userData, now);
 
         if (scanType === 'following') {
           // Update following data
           const previousFollowing = userData.following || [];
+          const hadPreviousFollowingScan = previousFollowing.length > 0 && userData.lastFollowingCheck;
           const mergedFollowing = mergeUsers(currentUsers, previousFollowing);
+          relationshipDelta = applyRelationshipDiff(
+            userData,
+            scanType,
+            currentUsers,
+            previousFollowing,
+            now,
+            scanId,
+            scanSource,
+            hadPreviousFollowingScan
+          );
 
           userData.following = mergedFollowing;
           userData.lastFollowingCheck = now;
@@ -987,6 +1259,16 @@
           const previousFollowers = userData.followers || [];
           const hadPreviousScan = previousFollowers.length > 0 && userData.lastFollowersCheck;
           const mergedFollowers = mergeUsers(currentUsers, previousFollowers);
+          relationshipDelta = applyRelationshipDiff(
+            userData,
+            scanType,
+            currentUsers,
+            previousFollowers,
+            now,
+            scanId,
+            scanSource,
+            hadPreviousScan
+          );
 
           userData.followers = mergedFollowers;
           userData.lastFollowersCheck = now;
@@ -1018,6 +1300,9 @@
             const existingNewFollowersMap = new Map(
               (userData.newFollowers || []).map(x => [normalizeUsername(x.username), x])
             );
+            const existingRefollowersMap = new Map(
+              (userData.refollowers || []).map(x => [normalizeUsername(x.username), x])
+            );
 
             // Add new unfollowers with timestamp
             unfollowers.forEach(f => {
@@ -1025,7 +1310,9 @@
               if (!existingUnfollowersMap.has(key)) {
                 existingUnfollowersMap.set(key, {
                   ...f,
-                  unfollowedAt: now
+                  unfollowedAt: now,
+                  scanId,
+                  repeatUnfollow: relationshipDelta.relost.includes(key)
                 });
               }
             });
@@ -1033,10 +1320,25 @@
             // Add new followers with timestamp
             newFollowers.forEach(f => {
               const key = normalizeUsername(f.username);
-              if (!existingNewFollowersMap.has(key)) {
+              const isRefollower = existingUnfollowersMap.has(key) || relationshipDelta.refollowed.includes(key);
+              if (!existingNewFollowersMap.has(key) || isRefollower) {
+                const previousNewFollower = existingNewFollowersMap.get(key) || {};
                 existingNewFollowersMap.set(key, {
+                  ...previousNewFollower,
                   ...f,
-                  timestamp: now
+                  timestamp: now,
+                  scanId,
+                  refollowed: isRefollower
+                });
+              }
+              if (isRefollower) {
+                const previousRefollower = existingRefollowersMap.get(key) || {};
+                existingRefollowersMap.set(key, {
+                  ...previousRefollower,
+                  ...f,
+                  timestamp: now,
+                  refollowedAt: now,
+                  scanId
                 });
               }
             });
@@ -1051,6 +1353,11 @@
             userData.newFollowers = Array.from(existingNewFollowersMap.values())
               .filter(x => x.username)
               .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+              .slice(0, 500); // Keep last 500
+
+            userData.refollowers = Array.from(existingRefollowersMap.values())
+              .filter(x => x.username)
+              .sort((a, b) => (b.refollowedAt || b.timestamp || 0) - (a.refollowedAt || a.timestamp || 0))
               .slice(0, 500); // Keep last 500
           }
 
@@ -1072,7 +1379,8 @@
 
         // Add to scan history
         userData.scanHistory = userData.scanHistory || [];
-        userData.scanHistory.push({
+        const scanEvent = {
+          scanId,
           type: scanType,
           source: scanSource,
           count: currentUsers.length,
@@ -1084,13 +1392,26 @@
           expectedSource,
           listPageExpected,
           countMatchesExpected,
-          status: scanStatus
-        });
+          status: scanStatus,
+          delta: relationshipDelta
+        };
+        userData.scanHistory.push(scanEvent);
 
-        // Keep only last 20 scan history entries
-        if (userData.scanHistory.length > 20) {
-          userData.scanHistory = userData.scanHistory.slice(-20);
+        // Keep enough history for meaningful trend analysis without unbounded growth.
+        if (userData.scanHistory.length > MAX_SCAN_HISTORY) {
+          userData.scanHistory = userData.scanHistory.slice(-MAX_SCAN_HISTORY);
         }
+
+        appendSnapshot(userData, {
+          ...scanEvent,
+          followersCount: userData.followers?.length || 0,
+          followingCount: userData.following?.length || 0,
+          unfollowersCount: userData.unfollowers?.length || 0,
+          newFollowersCount: userData.newFollowers?.length || 0,
+          refollowersCount: userData.refollowers?.length || 0,
+          fansCount: userData.fansList?.length || 0,
+          notFollowingBackCount: userData.notFollowingBack?.length || 0
+        });
 
         // Save to storage
         users[storageKey] = userData;

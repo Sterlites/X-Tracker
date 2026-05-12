@@ -633,15 +633,19 @@ async function appendProbeEvent(username, event) {
     following: [],
     unfollowers: [],
     newFollowers: [],
+    refollowers: [],
     fansList: [],
     notFollowingBack: [],
     scanCount: 0,
-    scanHistory: []
+    scanHistory: [],
+    snapshots: [],
+    relationshipsByHandle: {},
+    relationshipModelVersion: 2
   };
   userData.scanHistory = userData.scanHistory || [];
   userData.scanHistory.push(event);
-  if (userData.scanHistory.length > 20) {
-    userData.scanHistory = userData.scanHistory.slice(-20);
+  if (userData.scanHistory.length > 200) {
+    userData.scanHistory = userData.scanHistory.slice(-200);
   }
   users[storageKey] = userData;
   await setStorage({ users });
@@ -938,10 +942,14 @@ async function appendScanFailureEvent(username, details = {}) {
     following: [],
     unfollowers: [],
     newFollowers: [],
+    refollowers: [],
     fansList: [],
     notFollowingBack: [],
     scanCount: 0,
-    scanHistory: []
+    scanHistory: [],
+    snapshots: [],
+    relationshipsByHandle: {},
+    relationshipModelVersion: 2
   };
 
   const stats = details.stats || {};
@@ -986,8 +994,8 @@ async function appendScanFailureEvent(username, details = {}) {
       Number.isFinite(count) && Number.isFinite(expected) ? count === expected : null
   });
 
-  if (userData.scanHistory.length > 20) {
-    userData.scanHistory = userData.scanHistory.slice(-20);
+  if (userData.scanHistory.length > 200) {
+    userData.scanHistory = userData.scanHistory.slice(-200);
   }
 
   users[storageKey] = userData;

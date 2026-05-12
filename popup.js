@@ -17,6 +17,11 @@ let autoScanState = {
   autoScanIntervalMinutes: 120
 };
 
+const SYNC_BACKUP_MANIFEST_KEY = 'xTrackerBackupManifest';
+const SYNC_BACKUP_CHUNK_PREFIX = 'xTrackerBackupChunk_';
+const SYNC_BACKUP_MAX_BYTES = 98000;
+const SYNC_BACKUP_CHUNK_BYTES = 7000;
+
 // ================== Initialization ==================
 
 /**
@@ -52,6 +57,7 @@ async function loadUserData() {
   // Update UI
   updateUserDropdown();
   await loadAutoScanSettings();
+  await loadSyncBackupStatus();
   loadStats();
   
   // Check for stuck scans
@@ -156,6 +162,349 @@ async function runAutoScanNow() {
   } else if (response?.status === 'error') {
     showNotification(response.message || 'Auto scan failed', 'error');
   }
+}
+
+async function loadSyncBackupStatus() {
+  const statusEl = document.getElementById('syncBackupStatus');
+  if (!statusEl) {
+    return;
+  }
+
+  if (!chrome.storage?.sync) {
+    statusEl.textContent = 'Chrome sync storage is unavailable in this browser profile.';
+    return;
+  }
+
+  try {
+    const result = await getFromSync([SYNC_BACKUP_MANIFEST_KEY]);
+    const manifest = result[SYNC_BACKUP_MANIFEST_KEY];
+    if (!manifest) {
+      statusEl.textContent = `No Chrome profile backup yet. Extension ID: ${chrome.runtime.id}`;
+      return;
+    }
+
+    statusEl.textContent = `Last backup ${formatDateTime(manifest.createdAt)} (${formatBytes(manifest.bytes)}). Extension ID: ${manifest.extensionId || chrome.runtime.id}`;
+  } catch (error) {
+    statusEl.textContent = `Sync status unavailable: ${error.message}`;
+  }
+}
+
+async function backupToChromeSync() {
+  const statusEl = document.getElementById('syncBackupStatus');
+  const backupBtn = document.getElementById('syncBackupBtn');
+  const restoreBtn = document.getElementById('syncRestoreBtn');
+  setBackupControlsDisabled(true);
+  if (statusEl) {
+    statusEl.textContent = 'Preparing compact Chrome profile backup...';
+  }
+
+  try {
+    const localData = await getFromStorage([
+      'users',
+      'currentUser',
+      'userList',
+      'autoScanEnabled',
+      'autoScanIntervalMinutes',
+      'autoScanNextRunAt',
+      'autoScanCooldownUntil',
+      'autoScanLastRunAt',
+      'autoScanLastCountProbeAt',
+      'autoScanLastProfileFollowerCount',
+      'autoScanLastError'
+    ]);
+    const payload = createSyncBackupPayload(localData);
+    const json = JSON.stringify(payload);
+    const bytes = byteLength(json);
+
+    if (bytes > SYNC_BACKUP_MAX_BYTES) {
+      throw new Error(`Compact backup is ${formatBytes(bytes)}, above Chrome sync's practical ${formatBytes(SYNC_BACKUP_MAX_BYTES)} limit. Use Export for this full dataset.`);
+    }
+
+    const chunks = chunkStringByBytes(json, SYNC_BACKUP_CHUNK_BYTES);
+    await clearChromeSyncBackup();
+
+    const manifest = {
+      schemaVersion: 1,
+      createdAt: Date.now(),
+      bytes,
+      chunkCount: chunks.length,
+      extensionId: chrome.runtime.id,
+      mode: 'compact-restorable'
+    };
+    const syncPayload = {
+      [SYNC_BACKUP_MANIFEST_KEY]: manifest
+    };
+    chunks.forEach((chunk, index) => {
+      syncPayload[`${SYNC_BACKUP_CHUNK_PREFIX}${index}`] = chunk;
+    });
+
+    await setToSync(syncPayload);
+    if (statusEl) {
+      statusEl.textContent = `Backed up ${formatBytes(bytes)} to Chrome profile sync at ${formatDateTime(manifest.createdAt)}.`;
+    }
+    showQuickToast('Chrome profile backup saved', 'success');
+  } catch (error) {
+    if (statusEl) {
+      statusEl.textContent = error.message || 'Chrome profile backup failed.';
+    }
+    showNotification(error.message || 'Chrome profile backup failed', 'error');
+  } finally {
+    if (backupBtn || restoreBtn) {
+      setBackupControlsDisabled(false);
+    }
+  }
+}
+
+async function restoreFromChromeSync() {
+  if (!confirm('Restore Chrome profile backup? This will replace local tracker data in this extension profile.')) {
+    return;
+  }
+
+  const statusEl = document.getElementById('syncBackupStatus');
+  setBackupControlsDisabled(true);
+  if (statusEl) {
+    statusEl.textContent = 'Restoring Chrome profile backup...';
+  }
+
+  try {
+    const manifestResult = await getFromSync([SYNC_BACKUP_MANIFEST_KEY]);
+    const manifest = manifestResult[SYNC_BACKUP_MANIFEST_KEY];
+    if (!manifest?.chunkCount) {
+      throw new Error('No Chrome profile backup found for this extension ID.');
+    }
+
+    const chunkKeys = Array.from({ length: manifest.chunkCount }, (_, index) => `${SYNC_BACKUP_CHUNK_PREFIX}${index}`);
+    const chunkResult = await getFromSync(chunkKeys);
+    const json = chunkKeys.map(key => chunkResult[key] || '').join('');
+    const payload = JSON.parse(json);
+    if (payload.schemaVersion !== 1 || !payload.data) {
+      throw new Error('Backup schema is not supported.');
+    }
+
+    await setLocalStorage({
+      users: payload.data.users || {},
+      userList: payload.data.userList || [],
+      currentUser: payload.data.currentUser || null,
+      autoScanEnabled: !!payload.data.autoScanEnabled,
+      autoScanIntervalMinutes: payload.data.autoScanIntervalMinutes || 120,
+      autoScanNextRunAt: payload.data.autoScanNextRunAt || null,
+      autoScanCooldownUntil: payload.data.autoScanCooldownUntil || null,
+      autoScanLastRunAt: payload.data.autoScanLastRunAt || null,
+      autoScanLastCountProbeAt: payload.data.autoScanLastCountProbeAt || null,
+      autoScanLastProfileFollowerCount: Number.isFinite(payload.data.autoScanLastProfileFollowerCount)
+        ? payload.data.autoScanLastProfileFollowerCount
+        : null,
+      autoScanLastError: payload.data.autoScanLastError || null
+    });
+
+    await loadUserData();
+    if (statusEl) {
+      statusEl.textContent = `Restored backup from ${formatDateTime(manifest.createdAt)} (${formatBytes(manifest.bytes)}).`;
+    }
+    showNotification('Chrome profile backup restored', 'success');
+  } catch (error) {
+    if (statusEl) {
+      statusEl.textContent = error.message || 'Restore failed.';
+    }
+    showNotification(error.message || 'Restore failed', 'error');
+  } finally {
+    setBackupControlsDisabled(false);
+  }
+}
+
+function createSyncBackupPayload(localData) {
+  return {
+    schemaVersion: 1,
+    createdAt: Date.now(),
+    extensionId: chrome.runtime.id,
+    data: {
+      users: compactUsersForBackup(localData.users || {}),
+      userList: localData.userList || [],
+      currentUser: localData.currentUser || null,
+      autoScanEnabled: !!localData.autoScanEnabled,
+      autoScanIntervalMinutes: localData.autoScanIntervalMinutes || 120,
+      autoScanNextRunAt: localData.autoScanNextRunAt || null,
+      autoScanCooldownUntil: localData.autoScanCooldownUntil || null,
+      autoScanLastRunAt: localData.autoScanLastRunAt || null,
+      autoScanLastCountProbeAt: localData.autoScanLastCountProbeAt || null,
+      autoScanLastProfileFollowerCount: Number.isFinite(localData.autoScanLastProfileFollowerCount)
+        ? localData.autoScanLastProfileFollowerCount
+        : null,
+      autoScanLastError: localData.autoScanLastError || null
+    }
+  };
+}
+
+function compactUsersForBackup(users) {
+  return Object.fromEntries(Object.entries(users).map(([key, rawUserData]) => {
+    const userData = rawUserData || {};
+    return [
+      key,
+      {
+        followers: compactUserList(userData.followers),
+        following: compactUserList(userData.following),
+        unfollowers: compactUserList(userData.unfollowers),
+        newFollowers: compactUserList(userData.newFollowers),
+        refollowers: compactUserList(userData.refollowers),
+        fansList: compactUserList(userData.fansList),
+        notFollowingBack: compactUserList(userData.notFollowingBack),
+        scanCount: userData.scanCount || 0,
+        lastFollowersCheck: userData.lastFollowersCheck || null,
+        lastFollowingCheck: userData.lastFollowingCheck || null,
+        lastSuccessfulScan: userData.lastSuccessfulScan || null,
+        lastFollowersCount: userData.lastFollowersCount || null,
+        lastFollowingCount: userData.lastFollowingCount || null,
+        lastFollowersExpected: userData.lastFollowersExpected || null,
+        lastFollowingExpected: userData.lastFollowingExpected || null,
+        lastFollowersCoverage: userData.lastFollowersCoverage || null,
+        lastFollowingCoverage: userData.lastFollowingCoverage || null,
+        scanHistory: compactScanHistory(userData.scanHistory),
+        snapshots: compactScanHistory(userData.snapshots),
+        relationshipsByHandle: compactRelationships(userData.relationshipsByHandle),
+        relationshipModelVersion: userData.relationshipModelVersion || 2
+      }
+    ];
+  }));
+}
+
+function compactUserList(list) {
+  return (list || []).filter(user => user?.username).map(user => ({
+    username: user.username,
+    name: user.name || user.username,
+    bio: truncateText(user.bio || '', 120),
+    verified: !!user.verified,
+    profileUrl: user.profileUrl || `https://x.com/${user.username}`,
+    followsBack: !!user.followsBack,
+    firstSeenAt: user.firstSeenAt || null,
+    lastSeenAt: user.lastSeenAt || null,
+    timestamp: user.timestamp || null,
+    unfollowedAt: user.unfollowedAt || null,
+    refollowedAt: user.refollowedAt || null,
+    scanId: user.scanId || null,
+    refollowed: !!user.refollowed,
+    repeatUnfollow: !!user.repeatUnfollow
+  }));
+}
+
+function compactScanHistory(history) {
+  return (history || []).slice(-200).map(item => ({
+    scanId: item.scanId || null,
+    type: item.type || null,
+    source: item.source || null,
+    count: Number.isFinite(item.count) ? item.count : null,
+    expected: Number.isFinite(item.expected) ? item.expected : null,
+    coverage: Number.isFinite(item.coverage) ? item.coverage : null,
+    timestamp: item.timestamp || null,
+    verified: Number.isFinite(item.verified) ? item.verified : null,
+    status: item.status || null,
+    countMatchesExpected: typeof item.countMatchesExpected === 'boolean' ? item.countMatchesExpected : null,
+    followersCount: Number.isFinite(item.followersCount) ? item.followersCount : null,
+    followingCount: Number.isFinite(item.followingCount) ? item.followingCount : null,
+    unfollowersCount: Number.isFinite(item.unfollowersCount) ? item.unfollowersCount : null,
+    newFollowersCount: Number.isFinite(item.newFollowersCount) ? item.newFollowersCount : null,
+    refollowersCount: Number.isFinite(item.refollowersCount) ? item.refollowersCount : null,
+    fansCount: Number.isFinite(item.fansCount) ? item.fansCount : null,
+    notFollowingBackCount: Number.isFinite(item.notFollowingBackCount) ? item.notFollowingBackCount : null,
+    delta: compactDelta(item.delta)
+  }));
+}
+
+function compactDelta(delta = {}) {
+  return {
+    gained: (delta.gained || []).slice(-100),
+    lost: (delta.lost || []).slice(-100),
+    refollowed: (delta.refollowed || []).slice(-100),
+    relost: (delta.relost || []).slice(-100),
+    followingAdded: (delta.followingAdded || []).slice(-100),
+    followingRemoved: (delta.followingRemoved || []).slice(-100)
+  };
+}
+
+function compactRelationships(relationships = {}) {
+  return Object.fromEntries(Object.entries(relationships).map(([handle, record]) => [
+    handle,
+    {
+      username: record.username || handle,
+      name: record.name || handle,
+      verified: !!record.verified,
+      profileUrl: record.profileUrl || `https://x.com/${handle}`,
+      firstSeenAt: record.firstSeenAt || null,
+      lastSeenAt: record.lastSeenAt || null,
+      current: {
+        followsYou: !!record.current?.followsYou,
+        youFollow: !!record.current?.youFollow
+      },
+      events: (record.events || []).slice(-40).map(event => ({
+        type: event.type,
+        at: event.at,
+        scanId: event.scanId || null,
+        scanType: event.scanType || null,
+        source: event.source || null
+      }))
+    }
+  ]));
+}
+
+function truncateText(value, maxLength) {
+  const text = String(value || '');
+  return text.length > maxLength ? `${text.slice(0, maxLength - 1)}...` : text;
+}
+
+function setBackupControlsDisabled(disabled) {
+  const backupBtn = document.getElementById('syncBackupBtn');
+  const restoreBtn = document.getElementById('syncRestoreBtn');
+  if (backupBtn) backupBtn.disabled = disabled;
+  if (restoreBtn) restoreBtn.disabled = disabled;
+}
+
+async function clearChromeSyncBackup() {
+  const existing = await getFromSync(null);
+  const keys = Object.keys(existing).filter(key =>
+    key === SYNC_BACKUP_MANIFEST_KEY || key.startsWith(SYNC_BACKUP_CHUNK_PREFIX)
+  );
+  if (keys.length) {
+    await removeFromSync(keys);
+  }
+}
+
+function chunkStringByBytes(text, maxBytes) {
+  const chunks = [];
+  let chunk = '';
+  let chunkBytes = 0;
+
+  for (const char of text) {
+    const charBytes = byteLength(char);
+    if (chunk && chunkBytes + charBytes > maxBytes) {
+      chunks.push(chunk);
+      chunk = '';
+      chunkBytes = 0;
+    }
+    chunk += char;
+    chunkBytes += charBytes;
+  }
+
+  if (chunk) {
+    chunks.push(chunk);
+  }
+  return chunks;
+}
+
+function byteLength(text) {
+  return new TextEncoder().encode(String(text)).length;
+}
+
+function formatBytes(bytes) {
+  if (!Number.isFinite(bytes)) {
+    return 'unknown size';
+  }
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  return `${(bytes / 1024).toFixed(1)} KB`;
+}
+
+function isActivationKey(event) {
+  return event.key === 'Enter' || event.key === ' ';
 }
 
 // ================== User Management ==================
@@ -670,6 +1019,10 @@ function loadStats() {
     document.getElementById('fansCount').textContent = '0';
     document.getElementById('notFollowingBackCount').textContent = '0';
     document.getElementById('lastCheck').textContent = 'No account selected';
+    const dashboardAnalytics = document.getElementById('dashboardAnalytics');
+    const recentActivity = document.getElementById('recentActivity');
+    if (dashboardAnalytics) dashboardAnalytics.innerHTML = '';
+    if (recentActivity) recentActivity.innerHTML = '<div class="info-box">Add an account to start tracking follower history.</div>';
     return;
   }
   
@@ -711,6 +1064,14 @@ function loadStats() {
     
     // Render appropriate view
     if (currentView === 'dashboard') {
+      renderDashboard(userData, {
+        followers,
+        following,
+        unfollowers,
+        newFollowers,
+        fans,
+        notFollowingBack
+      });
       renderRecentActivity(unfollowers, newFollowers);
     } else if (currentView === 'unfollowers') {
       renderUnfollowers(unfollowers);
@@ -739,7 +1100,9 @@ function switchView(view) {
   
   // Update tab active states
   document.querySelectorAll('.tab').forEach(tab => {
-    tab.classList.toggle('active', tab.dataset.view === view);
+    const isActive = tab.dataset.view === view;
+    tab.classList.toggle('active', isActive);
+    tab.setAttribute('aria-selected', String(isActive));
   });
   
   // Show/hide views
@@ -789,6 +1152,344 @@ function applySearch(list, type) {
 }
 
 // ================== Rendering Functions ==================
+
+function renderDashboard(userData, lists) {
+  const container = document.getElementById('dashboardAnalytics');
+  if (!container) {
+    return;
+  }
+
+  const snapshots = getTrendSnapshots(userData, lists);
+  const relationshipEvents = getRelationshipEvents(userData);
+  const followerSeries = getSeries(snapshots, 'followersCount');
+  const followingSeries = getSeries(snapshots, 'followingCount');
+  const recentEvents = relationshipEvents.filter(event => event.at >= Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const gained30 = countEventTypes(recentEvents, ['followed', 'refollowed']);
+  const lost30 = countEventTypes(recentEvents, ['unfollowed', 'reunfollowed']);
+  const refollowed30 = countEventTypes(recentEvents, ['refollowed']);
+  const relost30 = countEventTypes(recentEvents, ['reunfollowed']);
+  const net30 = gained30 - lost30;
+  const latestSnapshot = snapshots[snapshots.length - 1] || null;
+  const firstSnapshot = snapshots[0] || null;
+  const followerDelta = latestSnapshot && firstSnapshot
+    ? (latestSnapshot.followersCount || 0) - (firstSnapshot.followersCount || 0)
+    : 0;
+  const followingDelta = latestSnapshot && firstSnapshot
+    ? (latestSnapshot.followingCount || 0) - (firstSnapshot.followingCount || 0)
+    : 0;
+  const reciprocity = lists.following.length
+    ? Math.round(((lists.following.length - lists.notFollowingBack.length) / lists.following.length) * 100)
+    : null;
+  const fanRatio = lists.followers.length
+    ? Math.round((lists.fans.length / lists.followers.length) * 100)
+    : null;
+  const verifiedShare = lists.followers.length
+    ? Math.round((lists.followers.filter(user => user.verified).length / lists.followers.length) * 100)
+    : null;
+  const quality = getScanQuality(userData);
+  const volatileHandles = getVolatileHandles(userData).slice(0, 4);
+
+  container.innerHTML = `
+    <div class="analytics-panel">
+      <div class="analytics-header">
+        <div class="analytics-title">Follower History</div>
+        <div class="analytics-subtitle">${snapshots.length} scan${snapshots.length === 1 ? '' : 's'}</div>
+      </div>
+      <div class="metric-row">
+        ${renderMetricChip('Net 30d', formatSignedNumber(net30), net30 >= 0 ? 'positive' : 'negative')}
+        ${renderMetricChip('Refollowed', refollowed30.toLocaleString(), refollowed30 ? 'positive' : '')}
+        ${renderMetricChip('Re-unfollowed', relost30.toLocaleString(), relost30 ? 'negative' : '')}
+      </div>
+      <div class="chart-grid">
+        <div class="chart-card">
+          <div class="chart-label"><span>Followers</span><span>${formatSignedNumber(followerDelta)}</span></div>
+          ${renderLineChart(followerSeries, '#34d399')}
+        </div>
+        <div class="chart-card">
+          <div class="chart-label"><span>Following</span><span>${formatSignedNumber(followingDelta)}</span></div>
+          ${renderLineChart(followingSeries, '#93c5fd')}
+        </div>
+      </div>
+      <div style="margin-top: 10px">
+        <div class="chart-label"><span>Daily follow/unfollow events</span><span>30d</span></div>
+        ${renderActivityBars(relationshipEvents, 30)}
+      </div>
+    </div>
+
+    <div class="analytics-panel">
+      <div class="analytics-header">
+        <div class="analytics-title">Relationship Health</div>
+        <span class="status-pill ${quality.className}">${quality.label}</span>
+      </div>
+      <div class="insight-grid">
+        ${renderInsightRow('Reciprocity', reciprocity === null ? 'N/A' : `${reciprocity}%`)}
+        ${renderInsightRow('Fans', fanRatio === null ? 'N/A' : `${fanRatio}%`)}
+        ${renderInsightRow('Verified followers', verifiedShare === null ? 'N/A' : `${verifiedShare}%`)}
+        ${renderInsightRow('30d churn', lists.followers.length ? `${((lost30 / Math.max(1, lists.followers.length)) * 100).toFixed(1)}%` : 'N/A')}
+        ${renderInsightRow('New handles', gained30.toLocaleString())}
+        ${renderInsightRow('Lost handles', lost30.toLocaleString())}
+      </div>
+      ${renderVolatileHandles(volatileHandles)}
+    </div>
+  `;
+}
+
+function renderMetricChip(label, value, tone = '') {
+  return `
+    <div class="metric-chip">
+      <div class="metric-chip-label">${escapeHtml(label)}</div>
+      <div class="metric-chip-value ${tone}">${escapeHtml(value)}</div>
+    </div>
+  `;
+}
+
+function renderInsightRow(label, value) {
+  return `
+    <div class="insight-row">
+      <span class="insight-label">${escapeHtml(label)}</span>
+      <span class="insight-value">${escapeHtml(value)}</span>
+    </div>
+  `;
+}
+
+function getTrendSnapshots(userData, lists) {
+  const snapshots = Array.isArray(userData.snapshots) ? userData.snapshots : [];
+  const normalized = snapshots
+    .map(snapshot => ({
+      timestamp: Number(snapshot.timestamp),
+      followersCount: Number.isFinite(snapshot.followersCount)
+        ? snapshot.followersCount
+        : (snapshot.type === 'followers' && Number.isFinite(snapshot.count) ? snapshot.count : null),
+      followingCount: Number.isFinite(snapshot.followingCount)
+        ? snapshot.followingCount
+        : (snapshot.type === 'following' && Number.isFinite(snapshot.count) ? snapshot.count : null),
+      coverage: Number.isFinite(snapshot.coverage) ? snapshot.coverage : null,
+      status: snapshot.status || 'complete'
+    }))
+    .filter(snapshot => Number.isFinite(snapshot.timestamp))
+    .sort((a, b) => a.timestamp - b.timestamp);
+
+  if (normalized.length) {
+    let lastFollowers = lists.followers.length;
+    let lastFollowing = lists.following.length;
+    normalized.forEach(snapshot => {
+      if (Number.isFinite(snapshot.followersCount)) {
+        lastFollowers = snapshot.followersCount;
+      } else {
+        snapshot.followersCount = lastFollowers;
+      }
+      if (Number.isFinite(snapshot.followingCount)) {
+        lastFollowing = snapshot.followingCount;
+      } else {
+        snapshot.followingCount = lastFollowing;
+      }
+    });
+    return normalized.filter(snapshot =>
+      Number.isFinite(snapshot.followersCount) || Number.isFinite(snapshot.followingCount)
+    );
+  }
+
+  const fallback = [];
+  if (userData.lastFollowersCheck || userData.lastFollowingCheck) {
+    fallback.push({
+      timestamp: Math.max(userData.lastFollowersCheck || 0, userData.lastFollowingCheck || 0),
+      followersCount: lists.followers.length,
+      followingCount: lists.following.length,
+      coverage: userData.lastFollowersCoverage || userData.lastFollowingCoverage || null,
+      status: 'complete'
+    });
+  }
+  return fallback;
+}
+
+function getSeries(snapshots, key) {
+  return snapshots
+    .filter(snapshot => Number.isFinite(snapshot[key]))
+    .map(snapshot => ({
+      at: snapshot.timestamp,
+      value: snapshot[key]
+    }));
+}
+
+function renderLineChart(series, color) {
+  const width = 220;
+  const height = 72;
+  const padding = 8;
+  if (series.length < 2) {
+    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Not enough trend data"><text x="50%" y="52%" text-anchor="middle" fill="rgba(255,255,255,0.45)" font-size="10">Need 2+ scans</text></svg>`;
+  }
+
+  const values = series.map(point => point.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = Math.max(1, max - min);
+  const step = (width - padding * 2) / Math.max(1, series.length - 1);
+  const points = series.map((point, index) => {
+    const x = padding + step * index;
+    const y = height - padding - ((point.value - min) / range) * (height - padding * 2);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  const area = `${padding},${height - padding} ${points.join(' ')} ${width - padding},${height - padding}`;
+
+  return `
+    <svg class="chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Trend chart">
+      <polyline points="${area}" fill="${color}" opacity="0.12"></polyline>
+      <polyline points="${points.join(' ')}" fill="none" stroke="${color}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></polyline>
+      <circle cx="${points[points.length - 1].split(',')[0]}" cy="${points[points.length - 1].split(',')[1]}" r="3" fill="${color}"></circle>
+    </svg>
+  `;
+}
+
+function renderActivityBars(events, days) {
+  const width = 430;
+  const height = 72;
+  const padding = 8;
+  const now = new Date();
+  const buckets = [];
+  for (let index = days - 1; index >= 0; index--) {
+    const date = new Date(now);
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() - index);
+    buckets.push({
+      day: date.getTime(),
+      gain: 0,
+      loss: 0
+    });
+  }
+
+  const firstDay = buckets[0]?.day || 0;
+  events.forEach(event => {
+    if (!Number.isFinite(event.at) || event.at < firstDay) {
+      return;
+    }
+    const date = new Date(event.at);
+    date.setHours(0, 0, 0, 0);
+    const bucket = buckets.find(item => item.day === date.getTime());
+    if (!bucket) {
+      return;
+    }
+    if (event.type === 'followed' || event.type === 'refollowed') {
+      bucket.gain++;
+    } else if (event.type === 'unfollowed' || event.type === 'reunfollowed') {
+      bucket.loss++;
+    }
+  });
+
+  const maxValue = Math.max(1, ...buckets.map(bucket => Math.max(bucket.gain, bucket.loss)));
+  const barWidth = Math.max(3, (width - padding * 2) / days - 2);
+  const mid = Math.round(height / 2);
+  const bars = buckets.map((bucket, index) => {
+    const x = padding + index * ((width - padding * 2) / days);
+    const gainHeight = Math.round((bucket.gain / maxValue) * (mid - padding));
+    const lossHeight = Math.round((bucket.loss / maxValue) * (mid - padding));
+    return `
+      <rect x="${x.toFixed(1)}" y="${mid - gainHeight}" width="${barWidth}" height="${gainHeight}" rx="1.5" fill="#34d399"></rect>
+      <rect x="${x.toFixed(1)}" y="${mid}" width="${barWidth}" height="${lossHeight}" rx="1.5" fill="#fb7185"></rect>
+    `;
+  }).join('');
+
+  return `
+    <svg class="chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Daily follow and unfollow events">
+      <line x1="${padding}" y1="${mid}" x2="${width - padding}" y2="${mid}" stroke="rgba(255,255,255,0.18)" stroke-width="1"></line>
+      ${bars}
+    </svg>
+  `;
+}
+
+function getRelationshipEvents(userData) {
+  const relationships = userData.relationshipsByHandle || {};
+  return Object.values(relationships).flatMap(record =>
+    (record.events || []).map(event => ({
+      ...event,
+      username: record.username,
+      name: record.name
+    }))
+  ).filter(event => Number.isFinite(event.at));
+}
+
+function countEventTypes(events, types) {
+  const wanted = new Set(types);
+  return events.filter(event => wanted.has(event.type)).length;
+}
+
+function getScanQuality(userData) {
+  const snapshots = Array.isArray(userData.snapshots) ? userData.snapshots : [];
+  const recent = snapshots.slice(-5);
+  const coverages = recent
+    .map(snapshot => Number(snapshot.coverage))
+    .filter(value => Number.isFinite(value));
+  const averageCoverage = coverages.length
+    ? coverages.reduce((sum, value) => sum + value, 0) / coverages.length
+    : null;
+  const failed = (userData.scanHistory || []).slice(-5).some(scan => scan.status === 'failed');
+
+  if (failed || (averageCoverage !== null && averageCoverage < 0.75)) {
+    return { label: 'Scan quality risk', className: 'risk' };
+  }
+  if (averageCoverage !== null && averageCoverage < 0.92) {
+    return { label: 'Coverage watch', className: 'watch' };
+  }
+  if (recent.length) {
+    return { label: 'Healthy data', className: 'good' };
+  }
+  return { label: 'No trend baseline', className: '' };
+}
+
+function getVolatileHandles(userData) {
+  const relationships = userData.relationshipsByHandle || {};
+  return Object.values(relationships)
+    .map(record => {
+      const followerEvents = (record.events || []).filter(event =>
+        event.type === 'followed' ||
+        event.type === 'refollowed' ||
+        event.type === 'unfollowed' ||
+        event.type === 'reunfollowed'
+      );
+      return {
+        username: record.username,
+        name: record.name || record.username,
+        events: followerEvents,
+        score: followerEvents.length,
+        losses: followerEvents.filter(event => event.type === 'unfollowed' || event.type === 'reunfollowed').length
+      };
+    })
+    .filter(item => item.score > 1)
+    .sort((a, b) => b.score - a.score || b.losses - a.losses);
+}
+
+function renderVolatileHandles(handles) {
+  if (!handles.length) {
+    return `
+      <div class="volatile-list">
+        <div class="volatile-item">
+          <span>No repeat follow/unfollow handles yet</span>
+          <span class="status-pill">stable</span>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="volatile-list">
+      ${handles.map(handle => `
+        <div class="volatile-item">
+          <span>@${escapeHtml(handle.username)}</span>
+          <span class="status-pill ${handle.losses > 1 ? 'risk' : 'watch'}">${handle.score} events</span>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function formatSignedNumber(value) {
+  if (!Number.isFinite(value)) {
+    return 'N/A';
+  }
+  if (value > 0) {
+    return `+${value.toLocaleString()}`;
+  }
+  return value.toLocaleString();
+}
 
 /**
  * Render recent activity on dashboard
@@ -1211,6 +1912,112 @@ function getChurnLabel(churn) {
   return '🚨 High';
 }
 
+function getRelationshipForUser(username) {
+  if (!currentUser || !username) {
+    return null;
+  }
+
+  const usersRoot = window.__xUsersCache || {};
+  const currentKey = Object.keys(usersRoot).find(
+    key => normalizeHandle(key) === normalizeHandle(currentUser)
+  ) || currentUser;
+  const userData = usersRoot[currentKey] || {};
+  const relationships = userData.relationshipsByHandle || {};
+  const handle = normalizeHandle(username);
+  return relationships[handle] || buildLegacyRelationship(userData, handle);
+}
+
+function buildLegacyRelationship(userData, handle) {
+  const events = [];
+  const legacyLists = [
+    { list: userData.newFollowers || [], timeKey: 'timestamp', type: user => user.refollowed ? 'refollowed' : 'followed' },
+    { list: userData.refollowers || [], timeKey: 'refollowedAt', type: () => 'refollowed' },
+    { list: userData.unfollowers || [], timeKey: 'unfollowedAt', type: user => user.repeatUnfollow ? 'reunfollowed' : 'unfollowed' }
+  ];
+
+  legacyLists.forEach(({ list, timeKey, type }) => {
+    const match = list.find(user => normalizeHandle(user.username) === handle);
+    const at = Number(match?.[timeKey] || match?.timestamp);
+    if (match && Number.isFinite(at)) {
+      events.push({
+        type: type(match),
+        at,
+        source: 'legacy'
+      });
+    }
+  });
+
+  if (!events.length) {
+    return null;
+  }
+
+  return {
+    username: handle,
+    events: events.sort((a, b) => a.at - b.at)
+  };
+}
+
+function normalizeHandle(value) {
+  return (value || '').replace(/^@/, '').trim().toLowerCase();
+}
+
+function getLatestFollowerEvent(relationship) {
+  const events = (relationship?.events || []).filter(event =>
+    event.type === 'followed' ||
+    event.type === 'refollowed' ||
+    event.type === 'unfollowed' ||
+    event.type === 'reunfollowed'
+  );
+  return events.length ? events[events.length - 1] : null;
+}
+
+function renderUserHistoryTimeline(user) {
+  const relationship = getRelationshipForUser(user.username);
+  const events = (relationship?.events || [])
+    .filter(event => Number.isFinite(event.at))
+    .sort((a, b) => a.at - b.at)
+    .slice(-4);
+
+  if (!events.length) {
+    return '';
+  }
+
+  return `
+    <div class="history-timeline" aria-label="Relationship history">
+      ${events.map(event => `
+        <span class="history-event ${getHistoryEventClass(event.type)}" title="${formatDateTime(event.at)}">
+          ${escapeHtml(getHistoryEventLabel(event.type))} ${escapeHtml(formatTime(event.at))}
+        </span>
+      `).join('')}
+    </div>
+  `;
+}
+
+function getHistoryEventClass(type) {
+  if (type === 'followed' || type === 'refollowed') {
+    return 'gain';
+  }
+  if (type === 'unfollowed' || type === 'reunfollowed') {
+    return 'loss';
+  }
+  if (type === 'you_followed' || type === 'you_unfollowed') {
+    return 'following';
+  }
+  return '';
+}
+
+function getHistoryEventLabel(type) {
+  const labels = {
+    followed: 'followed',
+    refollowed: 'refollowed',
+    unfollowed: 'unfollowed',
+    reunfollowed: 're-unfollowed',
+    you_followed: 'you followed',
+    you_unfollowed: 'you unfollowed'
+  };
+  return labels[type] || type;
+}
+
 /**
  * Render a user card
  * @param {Object} user - User object
@@ -1224,6 +2031,8 @@ function renderUserCard(user, type) {
   const isFan = type === 'fans';
   const isNotFollowBack = type === 'notfollowback';
   const isProbe = type === 'probe';
+  const relationship = getRelationshipForUser(user.username);
+  const latestFollowerEvent = getLatestFollowerEvent(relationship);
   
   // Determine card styling
   let backgroundColor, borderColor, statusText, statusColor, avatarStyle;
@@ -1231,12 +2040,16 @@ function renderUserCard(user, type) {
   if (isUnfollow) {
     backgroundColor = 'rgba(239, 68, 68, 0.1)';
     borderColor = 'rgba(239, 68, 68, 0.3)';
-    statusText = 'Unfollowed';
+    statusText = user.repeatUnfollow || latestFollowerEvent?.type === 'reunfollowed'
+      ? 'Re-unfollowed'
+      : 'Unfollowed';
     statusColor = '#ef4444';
   } else if (isNew) {
     backgroundColor = 'rgba(16, 185, 129, 0.1)';
     borderColor = 'rgba(16, 185, 129, 0.3)';
-    statusText = 'New Follower';
+    statusText = user.refollowed || latestFollowerEvent?.type === 'refollowed'
+      ? 'Refollowed'
+      : 'New Follower';
     statusColor = '#10b981';
   } else if (isFan) {
     backgroundColor = 'rgba(245, 158, 11, 0.1)';
@@ -1292,8 +2105,9 @@ function renderUserCard(user, type) {
     : '';
   
   // Timestamp
-  const timestamp = user.unfollowedAt || user.timestamp
-    ? `<div style="font-size: 11px; color: rgba(255,255,255,0.5)">${formatTime(user.unfollowedAt || user.timestamp)}</div>`
+  const eventTimestamp = user.unfollowedAt || user.refollowedAt || user.timestamp || latestFollowerEvent?.at;
+  const timestamp = eventTimestamp
+    ? `<div style="font-size: 11px; color: rgba(255,255,255,0.5)">${formatTime(eventTimestamp)}</div>`
     : '';
   
   // Bio
@@ -1314,6 +2128,7 @@ function renderUserCard(user, type) {
           <div class="user-username">@${escapeHtml(user.username || 'unknown')}</div>
           ${isUnfollow && user.firstSeenAt ? `<div style="font-size: 10px; color: rgba(255,255,255,0.4); margin-top: 2px">Following since ${new Date(user.firstSeenAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}</div>` : ''}
           ${bio}
+          ${renderUserHistoryTimeline(user)}
         </div>
       </div>
       <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px">
@@ -1408,6 +2223,54 @@ function escapeHtml(text) {
 function getFromStorage(keys) {
   return new Promise((resolve) => {
     chrome.storage.local.get(keys, resolve);
+  });
+}
+
+function setLocalStorage(value) {
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.set(value, () => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+      } else {
+        resolve();
+      }
+    });
+  });
+}
+
+function getFromSync(keys) {
+  return new Promise((resolve, reject) => {
+    chrome.storage.sync.get(keys, (result) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+      } else {
+        resolve(result || {});
+      }
+    });
+  });
+}
+
+function setToSync(value) {
+  return new Promise((resolve, reject) => {
+    chrome.storage.sync.set(value, () => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+      } else {
+        resolve();
+      }
+    });
+  });
+}
+
+function removeFromSync(keys) {
+  return new Promise((resolve, reject) => {
+    chrome.storage.sync.remove(keys, () => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+      } else {
+        resolve();
+      }
+    });
   });
 }
 
@@ -1603,8 +2466,11 @@ function exportData() {
       following: userData.following || [],
       unfollowers: userData.unfollowers || [],
       newFollowers: userData.newFollowers || [],
+      refollowers: userData.refollowers || [],
       fans: userData.fansList || [],
       notFollowingBack: userData.notFollowingBack || [],
+      snapshots: userData.snapshots || [],
+      relationshipsByHandle: userData.relationshipsByHandle || {},
       stats: {
         totalFollowers: userData.followers?.length || 0,
         totalFollowing: userData.following?.length || 0,
@@ -1662,6 +2528,13 @@ function setupEventListeners() {
       e.stopPropagation();
       toggleMenu();
     });
+    userDropdown.addEventListener('keydown', (e) => {
+      if (isActivationKey(e)) {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleMenu();
+      }
+    });
   }
   
   // Close menu when clicking outside
@@ -1674,12 +2547,29 @@ function setupEventListeners() {
       e.stopPropagation();
       promptAddUser();
     });
+    addUserBtn.addEventListener('keydown', (e) => {
+      if (isActivationKey(e)) {
+        e.preventDefault();
+        e.stopPropagation();
+        promptAddUser();
+      }
+    });
   }
   
   // Export button
   const exportBtn = document.getElementById('exportBtn');
   if (exportBtn) {
     exportBtn.addEventListener('click', exportData);
+  }
+
+  const syncBackupBtn = document.getElementById('syncBackupBtn');
+  if (syncBackupBtn) {
+    syncBackupBtn.addEventListener('click', backupToChromeSync);
+  }
+
+  const syncRestoreBtn = document.getElementById('syncRestoreBtn');
+  if (syncRestoreBtn) {
+    syncRestoreBtn.addEventListener('click', restoreFromChromeSync);
   }
 
   const autoScanEnabled = document.getElementById('autoScanEnabled');
@@ -1717,12 +2607,24 @@ function setupEventListeners() {
     tab.addEventListener('click', (e) => {
       switchView(e.target.dataset.view);
     });
+    tab.addEventListener('keydown', (e) => {
+      if (isActivationKey(e)) {
+        e.preventDefault();
+        switchView(e.currentTarget.dataset.view);
+      }
+    });
   });
   
   // Stat cards (click to switch view)
   document.querySelectorAll('.stat-card[data-view]').forEach(card => {
     card.addEventListener('click', (e) => {
       switchView(e.currentTarget.dataset.view);
+    });
+    card.addEventListener('keydown', (e) => {
+      if (isActivationKey(e)) {
+        e.preventDefault();
+        switchView(e.currentTarget.dataset.view);
+      }
     });
   });
   

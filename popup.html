@@ -358,6 +358,55 @@
       cursor: pointer;
     }
 
+    .cloud-backup-panel {
+      margin-top: 8px;
+      padding: 10px;
+      border-radius: 8px;
+      background: rgba(15, 23, 42, 0.55);
+      border: 1px solid rgba(148, 163, 184, 0.24);
+    }
+
+    .cloud-backup-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 12px;
+    }
+
+    .cloud-backup-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .cloud-backup-actions {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .cloud-backup-btn {
+      background: rgba(20, 184, 166, 0.16);
+      border: 1px solid rgba(20, 184, 166, 0.38);
+      color: #5eead4;
+      border-radius: 6px;
+      padding: 5px 8px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+
+    .cloud-backup-btn.secondary {
+      background: rgba(148, 163, 184, 0.14);
+      border-color: rgba(148, 163, 184, 0.34);
+      color: #cbd5e1;
+    }
+
+    .cloud-backup-status {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.58);
+      line-height: 1.35;
+    }
+
     /* Tabs */
     .tabs {
       display: flex;
@@ -387,6 +436,13 @@
       color: #60a5fa;
       border-bottom: 2px solid #60a5fa;
       background: rgba(255, 255, 255, 0.05);
+    }
+
+    button:focus-visible,
+    [role="button"]:focus-visible,
+    .stat-card:focus-visible {
+      outline: 2px solid #67e8f9;
+      outline-offset: 2px;
     }
 
     /* Content Area */
@@ -443,6 +499,214 @@
     .stat-value {
       font-size: 24px;
       font-weight: 700;
+    }
+
+    .dashboard-analytics {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .analytics-panel {
+      background: rgba(15, 23, 42, 0.5);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .analytics-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .analytics-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.86);
+    }
+
+    .analytics-subtitle {
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.45);
+      white-space: nowrap;
+    }
+
+    .metric-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .metric-chip {
+      min-width: 0;
+      border-radius: 8px;
+      padding: 8px;
+      background: rgba(255, 255, 255, 0.055);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .metric-chip-label {
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.5);
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .metric-chip-value {
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .metric-chip-value.positive {
+      color: #34d399;
+    }
+
+    .metric-chip-value.negative {
+      color: #fb7185;
+    }
+
+    .chart-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .chart-card {
+      min-width: 0;
+    }
+
+    .chart-label {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.52);
+      margin-bottom: 6px;
+    }
+
+    .chart-svg {
+      width: 100%;
+      height: 72px;
+      display: block;
+      border-radius: 7px;
+      background: rgba(2, 6, 23, 0.38);
+      border: 1px solid rgba(148, 163, 184, 0.16);
+    }
+
+    .insight-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .insight-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 7px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+      font-size: 11px;
+    }
+
+    .insight-row:last-child {
+      border-bottom: 0;
+    }
+
+    .insight-label {
+      color: rgba(255, 255, 255, 0.58);
+    }
+
+    .insight-value {
+      color: rgba(255, 255, 255, 0.9);
+      font-weight: 650;
+      text-align: right;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 3px 7px;
+      font-size: 10px;
+      font-weight: 700;
+      background: rgba(148, 163, 184, 0.16);
+      color: #cbd5e1;
+    }
+
+    .status-pill.good {
+      background: rgba(16, 185, 129, 0.18);
+      color: #6ee7b7;
+    }
+
+    .status-pill.watch {
+      background: rgba(245, 158, 11, 0.18);
+      color: #fbbf24;
+    }
+
+    .status-pill.risk {
+      background: rgba(244, 63, 94, 0.18);
+      color: #fb7185;
+    }
+
+    .volatile-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .volatile-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.72);
+    }
+
+    .history-timeline {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 7px;
+    }
+
+    .history-event {
+      border-radius: 999px;
+      padding: 2px 6px;
+      font-size: 10px;
+      line-height: 1.35;
+      background: rgba(148, 163, 184, 0.14);
+      color: #cbd5e1;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+    }
+
+    .history-event.gain {
+      background: rgba(16, 185, 129, 0.14);
+      border-color: rgba(16, 185, 129, 0.25);
+      color: #6ee7b7;
+    }
+
+    .history-event.loss {
+      background: rgba(244, 63, 94, 0.14);
+      border-color: rgba(244, 63, 94, 0.25);
+      color: #fb7185;
+    }
+
+    .history-event.following {
+      background: rgba(59, 130, 246, 0.14);
+      border-color: rgba(59, 130, 246, 0.25);
+      color: #93c5fd;
     }
 
     /* User List */
@@ -794,6 +1058,17 @@
         </div>
         <div id="autoScanStatus" class="auto-scan-status">Auto scan is off.</div>
       </div>
+
+      <div class="cloud-backup-panel">
+        <div class="cloud-backup-row">
+          <span>Chrome profile backup</span>
+          <div class="cloud-backup-actions">
+            <button id="syncBackupBtn" class="cloud-backup-btn">Back up</button>
+            <button id="syncRestoreBtn" class="cloud-backup-btn secondary">Restore</button>
+          </div>
+        </div>
+        <div id="syncBackupStatus" class="cloud-backup-status">Checking sync status...</div>
+      </div>
     </div>
   </div>
 
@@ -838,6 +1113,7 @@
           <div class="stat-value" style="color: #8b5cf6" id="notFollowingBackCount">0</div>
         </div>
       </div>
+      <div id="dashboardAnalytics" class="dashboard-analytics"></div>
       <div id="recentActivity"></div>
     </div>
 
@@ -915,7 +1191,7 @@
 
   <!-- Footer -->
   <div class="footer">
-    Data stored locally • No external servers
+    Local history • Optional Chrome profile backup
   </div>
 
   <!-- JavaScript -->
