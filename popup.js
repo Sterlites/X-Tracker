@@ -394,7 +394,7 @@ async function startScan(scanType) {
   const statusText = document.getElementById('scanStatusText');
   if (statusDot && statusText) {
     statusDot.classList.add('scanning');
-    statusText.textContent = `Scanning ${scanType}...`;
+    statusText.textContent = 'Reading profile counts...';
   }
   
   // Show progress bar
@@ -409,7 +409,12 @@ async function startScan(scanType) {
   chrome.storage.local.set({
     currentUser: currentUser,
     scanStatus: 'scanning',
-    currentScanType: scanType
+    currentScanType: scanType,
+    scanProgress: 0,
+    scanProgressPhase: 'profile',
+    scanProgressCount: 0,
+    scanProgressExpected: null,
+    scanProgressExpectedSource: 'profile'
   });
   
   try {
@@ -496,6 +501,42 @@ async function forceStopScan() {
   }
 }
 
+function formatScanProgressText(scanType, progressState) {
+  const progress = Number.isFinite(progressState.scanProgress)
+    ? Math.max(0, Math.min(100, Math.round(progressState.scanProgress)))
+    : 0;
+  const phase = progressState.scanProgressPhase || 'scanning';
+  const count = progressState.scanProgressCount;
+  const expected = progressState.scanProgressExpected;
+  const label = scanType || 'users';
+
+  if (phase === 'profile') {
+    return `Reading profile counts... ${progress}%`;
+  }
+  if (phase === 'loading') {
+    return `Opening ${label} list... ${progress}%`;
+  }
+  if (phase === 'validating') {
+    const countLabel = Number.isFinite(count) && Number.isFinite(expected)
+      ? ` (${count.toLocaleString()}/${expected.toLocaleString()})`
+      : '';
+    return `Validating ${label}... ${progress}%${countLabel}`;
+  }
+  if (phase === 'complete') {
+    return Number.isFinite(count)
+      ? `Scan complete (${count.toLocaleString()} found)`
+      : 'Scan complete';
+  }
+  if (phase === 'error') {
+    return 'Scan failed';
+  }
+
+  const countLabel = Number.isFinite(count) && Number.isFinite(expected)
+    ? ` (${count.toLocaleString()}/${expected.toLocaleString()})`
+    : (Number.isFinite(count) ? ` (${count.toLocaleString()} found)` : '');
+  return `Scanning ${label}... ${progress}%${countLabel}`;
+}
+
 /**
  * Start monitoring scan progress
  */
@@ -521,37 +562,48 @@ function startMonitoring() {
     }
     
     // Check scan status
-    chrome.storage.local.get(['scanStatus', 'scanProgress', 'currentScanType'], (result) => {
-      const statusText = document.getElementById('scanStatusText');
-      const progressFill = document.getElementById('scanProgressFill');
-      
-      // Update progress display
-      if (result.scanProgress) {
-        const scanType = result.currentScanType || 'users';
-        if (statusText) {
-          statusText.textContent = `Scanning ${scanType}... ${result.scanProgress}%`;
+    chrome.storage.local.get(
+      [
+        'scanStatus',
+        'scanProgress',
+        'scanProgressPhase',
+        'scanProgressCount',
+        'scanProgressExpected',
+        'scanProgressExpectedSource',
+        'currentScanType'
+      ],
+      (result) => {
+        const statusText = document.getElementById('scanStatusText');
+        const progressFill = document.getElementById('scanProgressFill');
+        
+        // Update progress display
+        if (Number.isFinite(result.scanProgress)) {
+          const scanType = result.currentScanType || 'users';
+          if (statusText) {
+            statusText.textContent = formatScanProgressText(scanType, result);
+          }
+          if (progressFill) {
+            progressFill.style.width = `${result.scanProgress}%`;
+          }
         }
-        if (progressFill) {
-          progressFill.style.width = `${result.scanProgress}%`;
+        
+        // Check if complete
+        if (result.scanStatus === 'complete') {
+          clearInterval(monitoringInterval);
+          monitoringInterval = null;
+          loadStats();
+          resetUIState(true);
+          showNotification('Scan completed!', 'success');
+        } else if (result.scanStatus === 'error' || result.scanStatus === 'idle') {
+          clearInterval(monitoringInterval);
+          monitoringInterval = null;
+          resetUIState();
+          if (result.scanStatus === 'error') {
+            showNotification('Scan failed', 'error');
+          }
         }
       }
-      
-      // Check if complete
-      if (result.scanStatus === 'complete') {
-        clearInterval(monitoringInterval);
-        monitoringInterval = null;
-        loadStats();
-        resetUIState(true);
-        showNotification('Scan completed!', 'success');
-      } else if (result.scanStatus === 'error' || result.scanStatus === 'idle') {
-        clearInterval(monitoringInterval);
-        monitoringInterval = null;
-        resetUIState();
-        if (result.scanStatus === 'error') {
-          showNotification('Scan failed', 'error');
-        }
-      }
-    });
+    );
   }, 1000); // Check every second
 }
 
@@ -1088,9 +1140,19 @@ function renderInsights(userData) {
       if (scan.type === 'followers_probe') {
         html += `<div class="insights-item">${formatTime(scan.timestamp)}: followers count probe (${sourceLabel}) - ${Number.isFinite(scan.probeCount) ? scan.probeCount : 'unknown'} shown</div>`;
       } else {
-        html += `<div class="insights-item">${formatTime(scan.timestamp)}: ${scan.type} scan (${sourceLabel}) - ${scan.count} users`;
+        const statusLabel = scan.status === 'verified_complete'
+          ? 'verified'
+          : (scan.status === 'failed' ? 'failed' : 'complete');
+        const expectedLabel = Number.isFinite(scan.expected)
+          ? `/${scan.expected.toLocaleString()}`
+          : '';
+        const countLabel = Number.isFinite(scan.count) ? scan.count.toLocaleString() : 'unknown';
+        html += `<div class="insights-item">${formatTime(scan.timestamp)}: ${scan.type} scan (${sourceLabel}, ${statusLabel}) - ${countLabel}${expectedLabel} users`;
         if (scan.verified) {
           html += ` (${scan.verified} verified)`;
+        }
+        if (scan.reason) {
+          html += ` - ${escapeHtml(scan.reason)}`;
         }
         html += `</div>`;
       }
@@ -1754,14 +1816,20 @@ chrome.runtime.onMessage.addListener((request) => {
     const statusText = document.getElementById('scanStatusText');
     const progressFill = document.getElementById('scanProgressFill');
     
-    if (statusText && request.progress) {
+    if (statusText && Number.isFinite(request.progress)) {
       chrome.storage.local.get(['currentScanType'], (result) => {
         const scanType = result.currentScanType || 'users';
-        statusText.textContent = `Scanning ${scanType}... ${request.progress}%`;
+        statusText.textContent = formatScanProgressText(scanType, {
+          scanProgress: request.progress,
+          scanProgressPhase: request.phase || 'scanning',
+          scanProgressCount: Number.isFinite(request.count) ? request.count : null,
+          scanProgressExpected: Number.isFinite(request.expected) ? request.expected : null,
+          scanProgressExpectedSource: request.expectedSource || null
+        });
       });
     }
     
-    if (progressFill && request.progress) {
+    if (progressFill && Number.isFinite(request.progress)) {
       progressFill.style.width = `${request.progress}%`;
     }
   }

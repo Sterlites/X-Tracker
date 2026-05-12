@@ -105,6 +105,10 @@
     });
   }
 
+  function getStorage(keys) {
+    return new Promise((resolve) => chrome.storage.local.get(keys, resolve));
+  }
+
   /**
    * Normalize username for consistent comparisons
    * @param {string} value - Raw username
@@ -492,6 +496,44 @@
     return Math.max(...candidates.filter(n => Number.isFinite(n)));
   }
 
+  async function getStoredScanContext(username, scanType) {
+    const result = await getStorage([
+      '_currentScanUsername',
+      '_currentScanExpectedCount',
+      '_currentScanExpectedSource',
+      '_currentScanProfileCounts'
+    ]);
+    const storedUsername = normalizeUsername(result._currentScanUsername);
+    const activeUsername = normalizeUsername(username);
+    const expectedCount = Number.isFinite(result._currentScanExpectedCount)
+      ? result._currentScanExpectedCount
+      : null;
+    const profileCounts = result._currentScanProfileCounts || null;
+
+    if (storedUsername && storedUsername !== activeUsername) {
+      return {
+        expectedCount: null,
+        expectedSource: null,
+        profileCounts,
+        hasProfileCounts: false
+      };
+    }
+
+    const expectedFromProfile = scanType === 'following'
+      ? profileCounts?.following
+      : profileCounts?.followers;
+
+    return {
+      expectedCount: Number.isFinite(expectedCount)
+        ? expectedCount
+        : (Number.isFinite(expectedFromProfile) ? expectedFromProfile : null),
+      expectedSource: result._currentScanExpectedSource || (Number.isFinite(expectedFromProfile) ? 'profile' : null),
+      profileCounts,
+      hasProfileCounts:
+        Number.isFinite(profileCounts?.followers) && Number.isFinite(profileCounts?.following)
+    };
+  }
+
   /**
    * Get minimum coverage threshold based on expected count
    * @param {number} expectedCount - Expected count from page
@@ -588,10 +630,11 @@
 
   /**
    * Collect all users by scrolling through the list
-   * @param {number|null} expectedCount - Expected count from page
+   * @param {number|null} expectedCount - Expected count from profile page
+   * @param {string|null} expectedSource - Source for expected count
    * @returns {Promise<Array<Object>>} Array of user objects
    */
-  async function collectAllUsers(expectedCount) {
+  async function collectAllUsers(expectedCount, expectedSource) {
     const foundUsers = new Map();
     let stabilityCounter = 0;
     let scrollCount = 0;
@@ -605,8 +648,11 @@
       updateIndicator('No users to scan');
       safeSendMessage({
         action: 'scanProgress',
+        phase: 'scanning',
         progress: 100,
-        count: 0
+        count: 0,
+        expected: 0,
+        expectedSource: expectedSource || null
       });
       return [];
     }
@@ -649,14 +695,15 @@
       const newUsersThisCycle = collectFromCells();
       const currentCount = foundUsers.size;
       
-      // Calculate progress. Blend count-based progress with stability progress so
-      // users do not see a low stuck percentage when the list has effectively ended.
+      // Use the profile count for scan progress when available; fall back only if unknown.
       const expectedProgress = expectedCount
         ? Math.min(95, Math.round((currentCount / expectedCount) * 100))
         : 0;
       const scrollProgress = Math.min(95, Math.round((scrollCount / MAX_SCROLLS) * 100));
       const stabilityProgress = Math.min(95, Math.round((stabilityCounter / STABILITY_THRESHOLD) * 95));
-      const progress = Math.max(expectedProgress, scrollProgress, stabilityProgress);
+      const progress = expectedCount
+        ? expectedProgress
+        : Math.max(scrollProgress, stabilityProgress);
       
       // Update UI
       const countLabel = expectedCount ? `${currentCount}/${expectedCount}` : `${currentCount}`;
@@ -665,8 +712,11 @@
       // Send progress to extension
       safeSendMessage({
         action: 'scanProgress',
+        phase: 'scanning',
         progress: progress,
-        count: currentCount
+        count: currentCount,
+        expected: Number.isFinite(expectedCount) ? expectedCount : null,
+        expectedSource: expectedSource || null
       });
 
       // Check if we found new users
@@ -698,12 +748,15 @@
       }
     }
 
-    // Final progress update
-    updateIndicator(`Scan complete! Found ${foundUsers.size} users`);
+    // Final collection update; validation and save still need to pass before completion.
+    updateIndicator(`Validating scan results... Found ${foundUsers.size} users`);
     safeSendMessage({
       action: 'scanProgress',
+      phase: 'validating',
       progress: 100,
-      count: foundUsers.size
+      count: foundUsers.size,
+      expected: Number.isFinite(expectedCount) ? expectedCount : null,
+      expectedSource: expectedSource || null
     });
 
     console.log(`Scan completed: ${foundUsers.size} users found in ${scrollCount} scrolls`);
@@ -864,10 +917,11 @@
  * @param {Array<Object>} currentUsers - Users collected in current scan
  * @param {string} username - Username being scanned
  * @param {string} scanType - Type of scan
- * @param {number|null} expectedCount - Expected count from page
+ * @param {number|null} expectedCount - Expected count from profile page
+ * @param {Object} metadata - Scan metadata
  * @returns {Promise<void>}
    */
-  async function saveData(currentUsers, username, scanType, expectedCount) {
+  async function saveData(currentUsers, username, scanType, expectedCount, metadata = {}) {
     return new Promise((resolve, reject) => {
       chrome.storage.local.get(['users', '_currentScanSource'], (result) => {
         const users = result.users || {};
@@ -891,7 +945,18 @@
         };
 
         const now = Date.now();
-        const coverage = expectedCount ? Number((currentUsers.length / expectedCount).toFixed(3)) : null;
+        const coverage = expectedCount
+          ? Number((currentUsers.length / expectedCount).toFixed(3))
+          : (expectedCount === 0 && currentUsers.length === 0 ? 1 : null);
+        const countMatchesExpected = Number.isFinite(expectedCount)
+          ? currentUsers.length === expectedCount
+          : null;
+        const scanStatus = countMatchesExpected ? 'verified_complete' : 'complete';
+        const profileCounts = metadata.profileCounts || null;
+        const expectedSource = metadata.expectedSource || null;
+        const listPageExpected = Number.isFinite(metadata.listPageExpected)
+          ? metadata.listPageExpected
+          : null;
 
         if (scanType === 'following') {
           // Update following data
@@ -903,6 +968,8 @@
           userData.lastFollowingCount = mergedFollowing.length;
           userData.lastFollowingExpected = Number.isFinite(expectedCount) ? expectedCount : null;
           userData.lastFollowingCoverage = Number.isFinite(coverage) ? coverage : null;
+          userData.lastFollowingExpectedSource = expectedSource;
+          userData.lastFollowingProfileCounts = profileCounts;
 
           // Mark which following users follow back
           const followerSet = new Set((userData.followers || []).map(f => normalizeUsername(f.username)));
@@ -926,6 +993,8 @@
           userData.lastFollowersCount = mergedFollowers.length;
           userData.lastFollowersExpected = Number.isFinite(expectedCount) ? expectedCount : null;
           userData.lastFollowersCoverage = Number.isFinite(coverage) ? coverage : null;
+          userData.lastFollowersExpectedSource = expectedSource;
+          userData.lastFollowersProfileCounts = profileCounts;
 
           // Detect unfollowers and new followers
           if (hadPreviousScan) {
@@ -1010,7 +1079,12 @@
           expected: Number.isFinite(expectedCount) ? expectedCount : null,
           coverage: Number.isFinite(coverage) ? coverage : null,
           timestamp: now,
-          verified: currentUsers.filter(f => f.verified).length
+          verified: currentUsers.filter(f => f.verified).length,
+          profileCounts,
+          expectedSource,
+          listPageExpected,
+          countMatchesExpected,
+          status: scanStatus
         });
 
         // Keep only last 20 scan history entries
@@ -1176,6 +1250,14 @@
     }
   }, MAX_SCAN_TIME_MS);
 
+  let username = null;
+  let scanType = null;
+  let expectedCount = null;
+  let expectedSource = null;
+  let profileCounts = null;
+  let listPageExpectedCount = null;
+  let users = [];
+
   try {
     // Show scanning indicator to user
     showIndicator();
@@ -1186,22 +1268,41 @@
       throw new Error('Not on followers/following page. Please navigate to the correct page.');
     }
 
-    const username = normalizeUsername(urlMatch[1]);
-    const scanType = window.location.pathname.includes('following') ? 'following' : 'followers';
+    username = normalizeUsername(urlMatch[1]);
+    scanType = window.location.pathname.includes('following') ? 'following' : 'followers';
     
     console.log(`Starting ${scanType} scan for @${username}`);
+
+    const scanContext = await getStoredScanContext(username, scanType);
+    expectedCount = scanContext.expectedCount;
+    expectedSource = scanContext.expectedSource;
+    profileCounts = scanContext.profileCounts;
+
+    if (!scanContext.hasProfileCounts || !Number.isFinite(expectedCount) || expectedSource !== 'profile') {
+      throw new Error('Profile counts were not available for this scan. Please restart the scan.');
+    }
+
+    await safeSendMessage({
+      action: 'scanProgress',
+      phase: 'loading',
+      progress: 5,
+      count: 0,
+      expected: expectedCount,
+      expectedSource
+    });
 
     // Wait for page to be ready
     await waitForPageReady(scanType);
 
-    // Read expected count from page
-    const expectedCount = getExpectedCountFromPage(scanType, username);
-    if (expectedCount !== null) {
-      console.log(`Expected ${scanType} count: ${expectedCount}`);
+    // Read the list-page count only as a diagnostic; profile count is canonical.
+    listPageExpectedCount = getExpectedCountFromPage(scanType, username);
+    if (listPageExpectedCount !== null) {
+      console.log(`List page ${scanType} count: ${listPageExpectedCount}`);
     }
+    console.log(`Profile ${scanType} count: ${expectedCount}`);
 
     // Collect all users by scrolling
-    const users = await collectAllUsers(expectedCount);
+    users = await collectAllUsers(expectedCount, expectedSource);
 
     // Check if scan was manually stopped
     if (window.xScannerShouldStop) {
@@ -1223,7 +1324,11 @@
     }
 
     // Save data to storage
-    await saveData(users, username, scanType, expectedCount);
+    await saveData(users, username, scanType, expectedCount, {
+      profileCounts,
+      expectedSource,
+      listPageExpected: listPageExpectedCount
+    });
 
     // Show success message
     showSuccess(users.length);
@@ -1235,7 +1340,11 @@
       scanType: scanType,
       stats: {
         total: users.length,
-        expected: Number.isFinite(expectedCount) ? expectedCount : null
+        expected: Number.isFinite(expectedCount) ? expectedCount : null,
+        expectedSource,
+        profileCounts,
+        listPageExpected: Number.isFinite(listPageExpectedCount) ? listPageExpectedCount : null,
+        countMatchesExpected: Number.isFinite(expectedCount) ? users.length === expectedCount : null
       }
     });
 
@@ -1258,7 +1367,18 @@
     // Notify background script of error
     await safeSendMessage({
       action: 'scanError',
-      error: error.message
+      error: error.message,
+      username,
+      scanType,
+      stats: {
+        total: Array.isArray(users) ? users.length : null,
+        expected: Number.isFinite(expectedCount) ? expectedCount : null,
+        expectedSource,
+        profileCounts,
+        listPageExpected: Number.isFinite(listPageExpectedCount) ? listPageExpectedCount : null,
+        countMatchesExpected:
+          Array.isArray(users) && Number.isFinite(expectedCount) ? users.length === expectedCount : null
+      }
     });
 
     // Clean up after error
