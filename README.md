@@ -2,6 +2,12 @@
 
 <div align="center">
 
+<a href="https://github.com/Sterlites/X-Tracker">
+  <img src="screenshots/og-image.png" alt="X Tracker - State-of-the-Art Follower & Unfollower Side Panel" width="100%" style="border-radius: 10px; max-width: 1000px;">
+</a>
+
+<br/><br/>
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-4285F4?style=flat&logo=google-chrome&logoColor=white)](https://github.com/Sterlites/X-Unfollow)
 [![X (Twitter)](https://img.shields.io/badge/X_(Twitter)-1DA1F2?style=flat&logo=twitter&logoColor=white)](https://x.com)
