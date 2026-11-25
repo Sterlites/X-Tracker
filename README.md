@@ -3,20 +3,40 @@
 <div align="center">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-4285F4?style=flat&logo=google-chrome&logoColor=white)](https://chrome.google.com/webstore)
+[![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-4285F4?style=flat&logo=google-chrome&logoColor=white)](https://github.com/Sterlites/X-Unfollow)
 [![X (Twitter)](https://img.shields.io/badge/X_(Twitter)-1DA1F2?style=flat&logo=twitter&logoColor=white)](https://x.com)
-[![Status](https://img.shields.io/badge/Status-Active-brightgreen)](https://github.com)
-[![Free](https://img.shields.io/badge/Price-Free-brightgreen)](https://github.com)
+[![Version: 3.0.0](https://img.shields.io/badge/Version-3.0.0-blue.svg)](https://github.com/Sterlites/X-Unfollow)
+[![Status](https://img.shields.io/badge/Status-Active-brightgreen)](https://github.com/Sterlites/X-Unfollow)
+[![Free & Open Source](https://img.shields.io/badge/Price-100%25_Free-brightgreen)](https://github.com/Sterlites/X-Unfollow)
 
 </div>
 
-> **Free X tracker for small X accounts - Track who unfollows you on X (formerly Twitter) without using the API. Monitor your followers, following, and social media engagement in real-time.**
+> **Free, private X (Twitter) tracker for small to medium accounts — Track who unfollowed you, detect handle renames, and monitor your social circle directly inside your browser side panel. No paid API keys required. 100% local and private.**
 
 <div align="center">
-<img src="icons/icon16.png" alt="X Icon" width="80" height="80">
+  <img src="icons/icon128.png" alt="X Tracker Icon" width="80" height="80">
   <h2>X Tracker</h2>
-  <p><em>Never miss who's unfollowed you again | Free for Small Accounts</em></p>
+  <p><em>Never wonder who unfollowed you again | Works right inside your browser side panel</em></p>
 </div>
+
+---
+
+## 📑 Quick Navigation
+
+- [🌟 Features](#-features)
+- [📸 Screenshots](#-screenshots)
+- [🚀 Installation (Beginner Friendly)](#-installation)
+  - [⚡ Option 1: 1-Click Automated Setup (Fastest)](#-option-1-1-click-automated-setup-recommended)
+  - [🖱️ Option 2: Step-by-Step Manual Setup (Foolproof)](#-option-2-step-by-step-manual-setup)
+  - [📌 Pinning the Extension](#-step-5-pin-the-extension-to-your-toolbar)
+  - [🌐 Browser Guides (Chrome, Brave, Edge, Opera)](#-browser-specific-notes)
+- [🎯 First-Time Quickstart](#-how-to-use-first-time-walkthrough)
+- [📊 Dashboard & Features](#-dashboard-features)
+- [⚡ Performance Guidelines](#-performance-guidelines)
+- [🔒 Privacy & Security](#-privacy--security)
+- [🛠️ Troubleshooting & Beginner FAQ](#-troubleshooting--beginner-faq)
+- [📦 File Structure](#-file-structure)
+- [🤝 Contributing & Support](#-contributing)
 
 ---
 
@@ -27,37 +47,37 @@
   <tr>
     <td align="center" width="50%">
       <img src="https://cdn-icons-png.flaticon.com/128/733/733579.png" alt="Followers Tracking" width="48" height="48">
-      <h3>Followers Tracking</h3>
-      <p>Monitor who follows and unfollows you</p>
+      <h3>Followers & Unfollowers</h3>
+      <p>Instantly see who followed or unfollowed you since your last scan</p>
     </td>
     <td align="center" width="50%">
       <img src="https://cdn-icons-png.flaticon.com/128/25/25634.png" alt="Multi-Account" width="48" height="48">
-      <h3>Multi-Account</h3>
-      <p>Track multiple X accounts simultaneously</p>
+      <h3>Multi-Account Support</h3>
+      <p>Track multiple personal and business X profiles seamlessly</p>
     </td>
   </tr>
   <tr>
     <td align="center" width="50%">
       <img src="https://cdn-icons-png.flaticon.com/128/1642/1642513.png" alt="Statistics" width="48" height="48">
-      <h3>Statistics</h3>
-      <p>Detailed analytics and insights</p>
+      <h3>Visual Analytics & Charts</h3>
+      <p>Clean SVG trend lines, follower history, and net change graphs</p>
     </td>
     <td align="center" width="50%">
       <img src="https://cdn-icons-png.flaticon.com/128/3076/3076083.png" alt="Privacy" width="48" height="48">
-      <h3>Privacy First</h3>
-      <p>All data stored locally, never leaves your device</p>
+      <h3>100% Privacy & Local Storage</h3>
+      <p>Data is stored strictly in your browser (IndexedDB). No cloud, no tracking</p>
     </td>
   </tr>
   <tr>
     <td align="center" width="50%">
-      <img src="https://cdn-icons-png.flaticon.com/128/2964/2964525.png" alt="Stuck Scan Prevention" width="48" height="48">
-      <h3>Stuck Scan Prevention</h3>
-      <p>Automatic detection and recovery from stuck scans</p>
+      <img src="https://cdn-icons-png.flaticon.com/128/2964/2964525.png" alt="Handle Renames" width="48" height="48">
+      <h3>Handle Rename Detection</h3>
+      <p>Uses immutable numeric IDs so people changing their @handle are never falsely reported as unfollowers</p>
     </td>
     <td align="center" width="50%">
-      <img src="https://cdn-icons-png.flaticon.com/128/3076/3076083.png" alt="Data Safety" width="48" height="48">
-      <h3>Data Safety</h3>
-      <p>Protects your existing data while stopping stuck scans</p>
+      <img src="https://cdn-icons-png.flaticon.com/128/3076/3076083.png" alt="Stuck Scan Prevention" width="48" height="48">
+      <h3>Stuck Scan Safeguards</h3>
+      <p>Automatic 5-minute watchdog timers, force-stop controls, and crash recovery</p>
     </td>
   </tr>
 </table>
@@ -69,14 +89,14 @@
 
 <div align="center">
   
-### Dashboard View
-<img src="screenshots/dashboard.png" alt="Dashboard View" width="450">
+### Side Panel Dashboard
+<img src="screenshots/dashboard.png" alt="Dashboard View" width="500">
 
-### Unfollowers View
-<img src="screenshots/unfollowers.png" alt="Unfollowers View" width="450">
+### Unfollowers Audit View
+<img src="screenshots/unfollowers.png" alt="Unfollowers View" width="500">
 
-### Multi-Account Support
-<img src="screenshots/multi_account.png" alt="Multi-Account View" width="450">
+### Multi-Account Switcher
+<img src="screenshots/multi_account.png" alt="Multi-Account View" width="500">
 
 </div>
 
@@ -84,62 +104,142 @@
 
 ## 🚀 Installation
 
-### Method 1: Manual Installation (Recommended)
+> [!NOTE]
+> **No programming or technical skills are required!** Setting this up takes less than 60 seconds. Choose whichever installation method you prefer below.
 
-1. **Clone or Download**
+---
+
+### ⚡ Option 1: 1-Click Automated Setup (Recommended)
+
+If you are on Windows or macOS/Linux, you can use our built-in 1-click helper script to automatically open the right browser page and copy the folder path for you:
+
+#### On Windows:
+1. **Download the project**:
+   - Click the green **Code** button at the top of GitHub, then click **[Download ZIP](https://github.com/Sterlites/X-Unfollow/archive/refs/heads/super-se-upar.zip)**.
+2. **Extract the ZIP file**:
+   - Right-click the downloaded `.zip` file, choose **Extract All...**, and click **Extract**.
+3. **Double-click `install.bat`**:
+   - Inside the extracted folder, double-click **`install.bat`**.
+   - The script will copy the folder path to your clipboard and automatically open your browser to `chrome://extensions`.
+4. **Finish in 2 clicks in your browser**:
+   - Turn **ON** the **Developer mode** toggle in the top-right corner.
+   - Click the **Load unpacked** button in the top-left corner.
+   - In the folder picker dialog, press **Ctrl + V** (to paste the path) and click **Select Folder**.
+   - 🎉 That's it! Look for the puzzle icon 🧩 in your browser toolbar to pin X Tracker.
+
+#### On macOS or Linux:
+1. Download and extract the repository ZIP.
+2. Open Terminal in the extracted folder and run:
    ```bash
-   git clone https://github.com/Sterlites/X-Tracker.git
+   chmod +x install.sh && ./install.sh
    ```
-   Or [download as ZIP](https://github.com/Sterlites/X-Tracker/archive/main.zip)
+3. Toggle **Developer mode** ON, click **Load unpacked**, paste the path, and click **Select**.
 
-2. **Open Chrome Extensions**
-   - Go to `chrome://extensions/`
-   - Toggle "Developer mode" ON (top right)
+---
 
-3. **Load the Extension**
-   - Click "Load unpacked"
-   - Select the folder where you extracted the files
+### 🖱️ Option 2: Step-by-Step Manual Setup
+
+If you prefer to set it up manually without scripts, follow these 5 foolproof steps:
+
+#### Step 1: Download & Extract the Files
+1. Download the ZIP by clicking: **[Download ZIP](https://github.com/Sterlites/X-Unfollow/archive/refs/heads/super-se-upar.zip)**.
+2. Open your `Downloads` folder.
+3. **Crucial Step**: Right-click the downloaded `X-Unfollow-super-se-upar.zip` and select **"Extract All..."** (Windows) or double-click to unarchive (Mac).
+
+> [!WARNING]
+> **Do not skip extraction!** Trying to load directly from inside a compressed `.zip` file will cause an error: *"Manifest file is missing or unreadable"*. Make sure you open the **extracted folder**.
+
+Your extracted folder should contain these exact files:
+```text
+📁 X-Tracker/                 <--- This is the folder you will select!
+   ├── manifest.json          <--- Must be directly inside this folder
+   ├── install.bat
+   ├── background.js
+   ├── sidepanel.html
+   ├── content/
+   ├── shared/
+   └── sidepanel/
+```
+
+#### Step 2: Open your Browser Extensions Page
+Open your web browser (Google Chrome, Brave, Microsoft Edge, or Opera) and navigate to the Extensions management page:
+
+| Browser | Address Bar URL (Copy & Paste) | Menu Shortcut |
+| :--- | :--- | :--- |
+| **Google Chrome** | `chrome://extensions` | Click **⋮** (top right) → **Extensions** → **Manage Extensions** |
+| **Brave Browser** | `brave://extensions` | Click **☰** (top right) → **Extensions** |
+| **Microsoft Edge** | `edge://extensions` | Click **⋯** (top right) → **Extensions** → **Manage Extensions** |
+| **Opera** | `opera://extensions` | Click **O** menu → **Extensions** → **Extensions** |
+
+> [!TIP]
+> Browsers do not allow web links to automatically open `chrome://` URLs for security reasons. Simply copy `chrome://extensions`, paste it into your browser's address bar, and press **Enter**.
+
+#### Step 3: Turn ON "Developer mode"
+Look at the **top-right corner** of the Extensions page. Find the **"Developer mode"** toggle switch and click it so it turns **ON (blue)**:
+
+```text
+                                              ┌───────────────────────┐
+  Extensions                                  │  Developer mode  [ON] │  <-- Toggle this ON!
+                                              └───────────────────────┘
+```
+
+#### Step 4: Click "Load unpacked"
+Once Developer mode is enabled, new buttons will appear in the top-left area:
+1. Click the **"Load unpacked"** button.
+2. A file selection window will open.
+3. Browse to and select the **extracted `X-Tracker` folder** (the one containing `manifest.json`).
+4. Click **Select Folder** (or **Open**).
 
 <div align="center">
-  <img src="https://github.com/user-attachments/assets/7561a863-43e1-49c5-a9a4-14f0939b0e30" alt="Installation Steps" width="600">
+  <img src="https://github.com/user-attachments/assets/7561a863-43e1-49c5-a9a4-14f0939b0e30" alt="Load Unpacked Button" width="650">
 </div>
 
-### Method 2: Package Installation
-
-1. Clone the repository
-2. Navigate to the extension directory
-3. Zip all files (without the parent folder)
-4. Go to `chrome://extensions/`
-5. Enable "Developer mode"
-6. Click "Pack extension" and select the unzipped folder
-7. Install the generated `.crx` file
+#### Step 5: Pin the Extension to your Toolbar!
+By default, browsers hide newly installed extensions under the puzzle piece icon. Make sure you pin it so you can open it with one click:
+1. In your browser's top toolbar, click the **Puzzle piece icon (🧩)** next to your address bar.
+2. Find **X Tracker - Unfollow Monitor**.
+3. Click the **Pin icon (📌)** next to it.
+4. The X Tracker icon will now stay visible on your toolbar!
 
 ---
 
-## 📋 Requirements
+### 🌐 Browser-Specific Notes
 
-- [Google Chrome](https://www.google.com/chrome/) or Chromium-based browser (Brave, Edge, Opera)
-- Active X (Twitter) account
-- Minimum Chrome version: 88+
-- Stable internet connection
+- **Google Chrome**: Works natively on Chrome 116 or newer with the Chrome Side Panel API.
+- **Brave Browser**: Brave fully supports Chrome extensions and the side panel. Make sure "Developer mode" is toggled ON in `brave://extensions`.
+- **Microsoft Edge**: In `edge://extensions`, toggle **"Developer mode"** in the left sidebar, then click **"Load unpacked"**.
+- **Opera / Vivaldi**: Enable Developer mode in their extensions page and load the unpacked directory.
 
 ---
 
-## 🎯 How to Use
+## 📋 System Requirements
 
-### Initial Setup
-1. **Login to X**: Ensure you're logged into X in your browser
-2. **Open Side Panel**: Click the extension icon in your toolbar to open the side panel
-3. **Add Account**: Use the "+" button to add the account you want to track
-4. **Enter Username**: Type your X username (without @ symbol)
+- **Browser**: [Google Chrome](https://www.google.com/chrome/), Brave, Microsoft Edge, or Chromium-based browser (Version **116+** required for the Side Panel API).
+- **Account**: An active [X (Twitter)](https://x.com) account logged into your browser.
+- **Connection**: Standard stable internet connection.
+- **Privileges**: No administrator permissions or root access required.
 
-### Scanning Process
-1. **Select Account**: Choose the account from the dropdown
-2. **Start Scanning**: Click either:
-   - 🧑‍🤝‍🧑 **"Scan Followers"** - Track who follows you
-   - 🔗 **"Scan Following"** - Track who you follow
-3. **Wait**: A new tab will open and scan automatically
-4. **Results**: View your dashboard after scanning completes
+---
+
+## 🎯 How to Use (First-Time Walkthrough)
+
+### 1. Make Sure You Are Logged In to X
+Open a tab and go to [x.com](https://x.com). Make sure you are signed in to your account.
+
+### 2. Open the Side Panel
+Click the **X Tracker icon** in your browser toolbar (or click the Side Panel icon). The X Tracker dashboard will slide out on the right side of your browser.
+
+### 3. Add Your Account
+1. Click the **`+` (Add Account)** button in the header.
+2. Type your X username (without the `@` symbol, e.g., `Sterlites`).
+3. Click **Add Account**.
+
+### 4. Run Your First Scan
+1. In the account dropdown, select your account.
+2. Click **"🧑‍🤝‍🧑 Scan Followers"** (or **"🔗 Scan Following"**).
+3. A dedicated scanner tab will open and automatically scroll through your follower list using passive GraphQL observation.
+4. **Do not close the scan tab manually** — it will close itself automatically when the scan finishes!
+5. Once complete, your dashboard will update with your exact follower counts, recent changes, and unfollowers list.
 
 <div align="center">
   <img src="https://github.com/user-attachments/assets/7def2596-3303-44e3-949d-7965b5d5c4c5" alt="How to Use" width="600">
@@ -149,263 +249,165 @@
 
 ## 📊 Dashboard Features
 
-### Main Dashboard
+### Real-Time Metric Tiles
 <div align="center">
 <table>
   <tr>
-    <td align="center"><img src="https://cdn-icons-png.flaticon.com/128/1076/1076098.png" alt="Followers" width="32" height="32"> Followers</td>
-    <td align="center"><img src="https://cdn-icons-png.flaticon.com/128/219/219975.png" alt="Following" width="32" height="32"> Following</td>
-    <td align="center"><img src="https://cdn-icons-png.flaticon.com/128/686/686267.png" alt="Unfollowers" width="32" height="32"> Unfollowers</td>
-    <td align="center"><img src="https://cdn-icons-png.flaticon.com/128/686/686362.png" alt="New" width="32" height="32"> New</td>
+    <td align="center"><b>👥 Followers</b></td>
+    <td align="center"><b>🔗 Following</b></td>
+    <td align="center"><b>💔 Unfollowers</b></td>
+    <td align="center"><b>✨ New Followers</b></td>
   </tr>
   <tr>
-    <td align="center"><code>Current follower count</code></td>
+    <td align="center"><code>Current count & net delta</code></td>
     <td align="center"><code>Accounts you follow</code></td>
-    <td align="center"><code>Recent unfollowers</code></td>
-    <td align="center"><code>New followers</code></td>
+    <td align="center"><code>People who unfollowed you</code></td>
+    <td align="center"><code>New followers gained</code></td>
   </tr>
 </table>
 </div>
 
 ### Navigation Tabs
-- **Dashboard**: Overview of all metrics
-- **Unfollowers**: List of accounts that recently unfollowed you
-- **New**: Recently acquired followers
-- **Following**: Accounts you currently follow
+- **📊 Dashboard**: High-level visual summary, metric cards, and follower trend lines.
+- **💔 Unfollowers**: Chronological list of who unfollowed you, with timestamps, bio previews, verification badges, and quick links.
+- **✨ New**: Recently acquired followers since your previous scan.
+- **🔗 Following**: Complete list of accounts you are currently following.
+- **⚙️ Settings & Export**: Export your data to CSV or Markdown, configure dark/light theme, set whitelist rules, and adjust scan preferences.
 
 ---
 
 ## ⚡ Performance Guidelines
 
-| Follower Count | Estimated Scan Time | Notes |
-|----------------|-------------------|-------|
-| < 1,000        | 1-5 minutes       | ✅ Smooth performance |
-| 1,000 - 5,000  | 5-15 minutes      | ⏳ Be patient |
-| 5,000 - 10,000 | 15-30 minutes     | ⏱️ May take time |
-| 10,000+        | 30+ minutes       | ⚠️ Large accounts may timeout |
+Because X loads followers dynamically in batches as you scroll down, scan times vary depending on your follower count:
 
-> 💡 **Pro Tip**: For best performance, scan during off-peak hours and ensure a stable internet connection.
+| Follower Count | Estimated Scan Time | Tips for Best Results |
+| :--- | :--- | :--- |
+| **< 1,000** | 30 seconds - 2 minutes | ⚡ Lightning fast and smooth |
+| **1,000 - 5,000** | 3 - 8 minutes | ☕ Grab a coffee while the scan tab runs in the background |
+| **5,000 - 15,000** | 8 - 20 minutes | 📶 Keep your internet connection stable |
+| **15,000+** | 20+ minutes | ⚠️ X rate limits large automated requests; use off-peak hours |
 
----
-
-## 🔧 Advanced Features
-
-### Multi-Account Management
-- Add and manage multiple X accounts
-- Switch between accounts instantly
-- Independent tracking for each account
-- Dedicated statistics for each profile
-
-### Tracking Capabilities
-- **Followers Monitoring**: Track who follows you
-- **Following Monitoring**: Monitor accounts you follow
-- **Historical Data**: View changes over time
-- **Real-time Updates**: Get the latest information
-
-### Privacy Controls
-- **Local Storage Only**: No data leaves your device
-- **Complete Privacy**: No external servers involved
-- **Easy Cleanup**: Remove stored data with one click
-- **Secure Storage**: Data stored securely in browser
-
-### Stuck Scan Prevention
-- **Automatic Detection**: Scans running longer than 2 minutes are flagged as potentially stuck
-- **Force Stop Button**: Manual intervention option when scans get stuck
-- **Automatic Cleanup**: Stuck scans are cleared when the browser restarts
-- **Timeout Protection**: Scans automatically stop after 5 minutes to prevent infinite loops
-- **Data Preservation**: Existing data remains safe when stopping stuck scans
-
----
-
-## ⚠️ Important Disclaimers
-
-### Usage Warning
-> ⚠️ **CRITICAL**: This extension scrapes X's website, which may violate their Terms of Service. Your account could be suspended if detected. Use at your own risk for personal use only.
-
-### Technical Limitations
-- **Scraping-Based**: Uses web scraping instead of official API
-- **Rate Limiting**: X may apply rate limits to prevent scraping
-- **HTML Changes**: X's interface changes may break functionality
-- **Large Accounts**: Very large accounts may experience timeouts
-- **Network Issues**: Poor connection may interrupt scans
-
-### Recommended Usage
-- **Frequency**: Limit scans to once per hour
-- **Active Session**: Must be logged into X in browser
-- **Stability**: Use during stable network conditions
-- **Account Size**: Best for accounts under 100k followers
+> 💡 **Pro Tip**: Keep your scans to 1-2 times per day. There is no need to scan continuously, and spacing out scans keeps your account activity looking completely natural.
 
 ---
 
 ## 🔒 Privacy & Security
 
-### Data Handling
-<div align="center">
-<table>
-  <tr>
-    <th>Aspect</th>
-    <th>Details</th>
-  </tr>
-  <tr>
-    <td>Storage Location</td>
-    <td>Local browser storage only</td>
-  </tr>
-  <tr>
-    <td>Data Transmission</td>
-    <td>No external communication</td>
-  </tr>
-  <tr>
-    <td>Encryption</td>
-    <td>Browser's standard encryption</td>
-  </tr>
-    <tr>
-    <td>Access</td>
-    <td>Extension only access</td>
-  </tr>
-</table>
-</div>
+We built X Tracker with a strict **Privacy-First** architecture:
 
-### Security Features
-- ✅ **No External Servers**: All data stays on your device
-- ✅ **No Data Sharing**: Never sends data to third parties
-- ✅ **Open Source**: Code available for review
-- ⚠️ **Local Access**: Anyone with computer access can view data
-- ❌ **No Encryption**: Browser storage is standard (not encrypted)
+- 🔒 **Zero External Servers**: The extension communicates only with `x.com` directly within your browser. There is no backend server, telemetry server, or analytics ping.
+- 🔑 **No Passwords or API Keys**: The extension uses your existing browser session cookies to read your follower lists. It never sees or asks for your password.
+- 💾 **Local IndexedDB Database**: All scanned follower histories, timestamps, and usernames are stored locally on your machine in browser storage (`XTrackerDB`).
+- 🧹 **1-Click Data Wipe**: You can export your data to CSV or JSON, or erase all stored history at any time from the Settings dialog.
 
 ---
 
-## 🛠️ Troubleshooting
+## 🛠️ Troubleshooting & Beginner FAQ
 
-### Common Issues
+### Beginner Gotchas & Setup Questions
 
-#### Extension Not Working
-**Problem**: The side panel doesn't respond or shows errors
-**Solution**:
-- Check if you're logged into X in your browser
-- Verify your username is correctly added to the extension
-- Open browser console (F12 → Console) to check for errors
-- Reload the extension from chrome://extensions/
+#### ❓ Error: *"Manifest file is missing or unreadable"*
+- **Cause**: You selected the outer zip folder or a parent folder instead of the folder that directly contains `manifest.json`.
+- **Fix**: Open the folder in File Explorer / Finder. Make sure you see `manifest.json` right in front of you. In the "Load unpacked" dialog, select that exact folder.
 
-#### Scan Takes Too Long
-**Problem**: Scanning process seems stuck or very slow
-**Solution**:
-- This is normal for large follower counts (1000+ can take 5-20 minutes)
-- X loads followers in batches as it scrolls down the page
-- Don't close the scanning tab manually - it will close automatically
-- Try scanning during off-peak hours when X's servers are less busy
+#### ❓ Clicking `chrome://extensions` on GitHub does nothing
+- **Cause**: Web browsers intentionally block websites from opening internal `chrome://` or `edge://` links for security.
+- **Fix**: Manually highlight `chrome://extensions`, press **Ctrl + C** (or **Cmd + C**), click your browser address bar, press **Ctrl + V**, and hit **Enter**.
 
-#### Stuck Scans
-**Problem**: The scan appears stuck and doesn't complete, or shows "running" status even after closing the browser
-**Solution**:
-- **Automatic Detection**: The extension now automatically detects scans that have been running for more than 2 minutes and shows a "Force Stop" button
-- **Force Stop**: Click the "🔧 Force Stop" button to immediately stop a stuck scan
-- **Automatic Cleanup**: When you restart your browser, any stuck scans are automatically cleared
-- **Timeout Protection**: Scans automatically stop after 5 minutes if they're taking too long
-- **Data Safety**: Stopping a stuck scan will not delete your existing data
+#### ❓ Where did the extension icon go after I installed it?
+- **Cause**: Modern Chromium browsers automatically hide new extensions behind the puzzle piece menu.
+- **Fix**: Click the **puzzle piece icon (🧩)** in the top-right toolbar, find **X Tracker**, and click the **pin icon (📌)** to keep it permanently visible.
 
-#### Missing Followers
-**Problem**: Some followers don't appear in the results
-**Solution**:
-- X may not load all followers for very large accounts
-- Try scanning at different times of day
-- Private/protected accounts may not appear in public follower lists
-- Some accounts might be temporarily invisible due to X's systems
+#### ❓ Do I have to re-install it every time I close the browser?
+- **Answer**: **No!** Once loaded via "Load unpacked", Chrome keeps the extension permanently installed across browser restarts and system reboots until you choose to remove it.
 
-#### Data Not Saving
-**Problem**: Stats reset after browser restart or side panel reload
-**Solution**:
-- Check if browser has storage permissions enabled
-- Try reloading the extension from chrome://extensions/
-- Clear browser cache if storage quota is exceeded
-- Check for browser storage errors in console (F12)
+#### ❓ How do I update to newer versions?
+- **Answer**: Download the updated files and replace the contents of your existing `X-Tracker` folder. Then go to `chrome://extensions` and click the **circular Reload icon (🔄)** on the X Tracker card. All your stored data will be preserved!
 
-### Error Messages
-- **"No active tab"**: Check that you have an active browser tab open
-- **"Scan failed"**: Network issue or X server problem occurred
-- **"Timeout"**: Account has too many followers or network is slow
-- **"Permission denied"**: Extension may need updated permissions
+---
+
+### Scanning & Usage Questions
+
+#### ❓ The scan appears stuck or takes a long time
+- The extension automatically monitors scan health. If a scan takes longer than 2 minutes, a **"🔧 Force Stop"** button appears.
+- If X stops returning followers (due to temporary rate limits), click **"Force Stop"**. Your existing data and partial scan results will remain 100% safe.
+- Scans automatically stop after a 5-minute safety timeout to prevent infinite loops.
+
+#### ❓ The Side Panel won't open
+- Ensure your browser version is Chrome 116 or newer.
+- Make sure you are on a webpage (such as `x.com`) when clicking the icon, as some browsers disable side panels on the blank New Tab page.
+
+#### ❓ Why does someone show as an "Unfollower" when they only changed their username?
+- Standard scrapers only look at usernames, so changing `@old_name` to `@new_name` triggers a false unfollow alert.
+- **X Tracker prevents this**: It tracks accounts by their permanent numeric `rest_id`. If someone changes their handle, X Tracker automatically detects the rename and updates their profile instead of marking them as an unfollower!
 
 ---
 
 ## 📦 File Structure
 
-```
+```text
 X-Unfollow/
-├── manifest.json                 # Extension manifest (MV3 v3.0.0)
-├── background.js                 # ES module service worker (alarms, locks, tabs, notifications)
-├── sidepanel.html                # Side panel UI shell
+├── install.bat                   # 1-Click Windows setup helper (copies path & opens browser)
+├── install.sh                    # 1-Click macOS/Linux setup helper
+├── manifest.json                 # Chrome MV3 manifest (v3.0.0, sidePanel API)
+├── background.js                 # Service worker (scans, alarms, badge updates, tabs)
+├── sidepanel.html                # Side panel UI layout & container
 ├── shared/
-│   ├── constants.js              # Scopes, alarm names, defaults, reserved X paths
-│   ├── utils.js                  # Localized count parser, URL sanitization, CSV & Markdown builders
-│   ├── diff.js                   # Pure identity reconciliation, handle-rename detection, diff engine
-│   └── db.js                     # Normalized IndexedDB (XTrackerDB) + v2 migration & backup
+│   ├── constants.js              # Defaults, alarm names, limits, and configuration
+│   ├── utils.js                  # Count parser, URL sanitizer, CSV & Markdown builders
+│   ├── diff.js                   # Pure diff engine, rename reconciliation, quality scoring
+│   └── db.js                     # Local IndexedDB (XTrackerDB), migrations, backups
 ├── content/
-│   ├── main-interceptor.js       # MAIN-world passive GraphQL/fetch/XHR observer
-│   ├── graphql-parser.js         # Multi-schema GraphQL/REST payload parser
-│   ├── hud.js                    # Encapsulated Shadow DOM in-page HUD & profile pill
-│   └── scraper.js                # Virtual-scroll DOM fallback, checkpointing, passive capture
+│   ├── main-interceptor.js       # Passive GraphQL/REST network traffic observer
+│   ├── graphql-parser.js         # Multi-schema Twitter GraphQL/REST response parser
+│   ├── hud.js                    # In-page Shadow DOM status HUD and profile badge
+│   └── scraper.js                # DOM virtual-scroll fallback & scroll controller
 ├── sidepanel/
-│   ├── app.js                    # Reactive UI controller, chunked rendering, keyboard tabs
-│   ├── charts.js                 # Accessible SVG trend & activity charts
-│   ├── dialogs.js                # Native <dialog> modals (Add Account, Settings, Confirm)
-│   ├── exports.js                # CSV, Markdown, JSON archive export & import
+│   ├── app.js                    # Reactive UI controller, view switching, search, filters
+│   ├── charts.js                 # Accessible SVG trend & engagement visualizations
+│   ├── dialogs.js                # Native modal dialogs (Add Account, Settings, Export)
+│   ├── exports.js                # CSV, Markdown, and JSON backup export/import
 │   └── styles/
-│       ├── tokens.css            # WCAG AA dark/light design tokens
-│       ├── base.css              # Element-scoped reset & browser surface theming
-│       └── components.css        # Responsive @container layout, tabs, popovers, cards
+│       ├── tokens.css            # Dark/light design tokens (WCAG AA compliant)
+│       ├── base.css              # Reset, typography, and surface theming
+│       └── components.css        # Responsive cards, tab navigation, buttons, badges
 ├── tests/
-│   └── core.test.mjs             # Node built-in unit & manifest integrity tests
+│   └── core.test.mjs             # Node.js unit tests (diff engine, parser, manifest checks)
 ├── icons/
 │   ├── icon16.png                # 16×16 toolbar icon
 │   ├── icon48.png                # 48×48 extensions page icon
-│   └── icon128.png               # 128×128 store/notification icon
-└── screenshots/
+│   └── icon128.png               # 128×128 store & notification icon
+└── screenshots/                  # Documentation preview images
 ```
 
 ---
 
 ## 🤝 Contributing
 
-We welcome contributions! Here's how you can help:
+We welcome community contributions, bug reports, and suggestions!
 
-### Development Setup
-1. Fork the repository from [Sterlites GitHub](https://github.com/Sterlites)
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Commit your changes (`git commit -m 'Add some amazing feature'`)
-5. Push to the branch (`git push origin feature/amazing-feature`)
-6. Open a Pull Request
-
-### Areas for Improvement
-- [ ] Better error handling and user feedback
-- [ ] Support for dark/light mode preferences
-- [ ] Notification system for new unfollowers
-- [ ] Export functionality for data analytics
-- [ ] Support for other browsers (Firefox, Safari)
+1. Fork the repository from [Sterlites GitHub](https://github.com/Sterlites/X-Unfollow)
+2. Create a feature branch: `git checkout -b feature/my-new-feature`
+3. Commit your changes: `git commit -m 'Add awesome feature'`
+4. Push to your branch: `git push origin feature/my-new-feature`
+5. Open a Pull Request
 
 ---
 
-## 📞 Support
+## 📞 Support & Community
 
-### Need Help?
-- 🐛 **Bug Reports**: Open an issue on [GitHub Issues](https://github.com/Sterlites/X-Tracker/issues)
-- 💡 **Feature Requests**: Create a feature request in the issues section
-- 📚 **Documentation**: Check this README for detailed instructions
-- 💬 **Community**: Join discussions for help from other users
-
-### Contact
-- 🌐 Website: [www.sterlites.com](https://www.sterlites.com)
-- 📧 Email: [contact@sterlites.com](mailto:contact@sterlites.com)
-- 🐣 X (Twitter): [@Rohit_Dwivedi](https://x.com/Rohit_Dwivedi)
-- 💬 GitHub: [Sterlites Organization](https://github.com/Sterlites)
+- 🐛 **Bug Reports**: Open an issue on [GitHub Issues](https://github.com/Sterlites/X-Unfollow/issues)
+- 💡 **Feature Requests**: Share ideas in [GitHub Discussions](https://github.com/Sterlites/X-Unfollow/discussions)
+- 🌐 **Website**: [www.sterlites.com](https://www.sterlites.com)
+- 🐣 **Follow the Creator**: [@Rohit_Dwivedi](https://x.com/Rohit_Dwivedi)
 
 ---
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is open source and licensed under the [MIT License](LICENSE).
 
-```
+```text
 MIT License
 
 Copyright (c) 2025 Sterlites
@@ -431,38 +433,13 @@ SOFTWARE.
 
 ---
 
-## 🙏 Acknowledgments
-
-- **X (Twitter)** for providing the platform that inspired this tool
-- **Chrome Extension APIs** for enabling powerful browser extensions
-- **Open Source Community** for inspiration and best practices
-- **Beta Testers** for invaluable feedback and testing
-- **Flaticon** for the amazing icons used in this project
-- **[Sterlites](https://www.sterlites.com)** for the development and maintenance of this project
-- **[@Rohit_Dwivedi](https://x.com/Rohit_Dwivedi)** for the initiative and continued support
-- **All Contributors** who have helped make this project better
-
----
-
 <div align="center">
 
-### 💖 Like this extension?
+### 💖 Like this project?
+If X Tracker helps you manage your account, please consider giving it a **Star ⭐ on GitHub**!
 
-If you find X Tracker helpful, please give it a star! ⭐
+[![GitHub stars](https://img.shields.io/github/stars/Sterlites/X-Unfollow?style=social)](https://github.com/Sterlites/X-Unfollow/stargazers)
 
-[![GitHub stars](https://img.shields.io/github/stars/Sterlites/X-Tracker?style=social)](https://github.com/Sterlites/X-Tracker/stargazers)
-
-</div>
-
-<div align="center">
-  <h3><b>Free X Tracker for Small Accounts</b></h3>
-  <p>Made with ❤️ by <a href="https://www.sterlites.com">Sterlites</a> | Follow us: <a href="https://x.com/Rohit_Dwivedi">@Rohit_Dwivedi</a> | For X (Twitter) users everywhere</p>
-</div>
-
-<div align="center">
-
-### 🐛 Issues?
-[![GitHub issues](https://img.shields.io/github/issues/Sterlites/X-Tracker)](https://github.com/Sterlites/X-Tracker/issues)
-[![GitHub issues closed](https://img.shields.io/github/issues-closed/Sterlites/X-Tracker)](https://github.com/Sterlites/X-Tracker/issues)
+<p>Made with ❤️ by <a href="https://www.sterlites.com">Sterlites</a> | Follow <a href="https://x.com/Rohit_Dwivedi">@Rohit_Dwivedi</a> on X</p>
 
 </div>
