@@ -1257,6 +1257,10 @@
         showActions: false
       });
 
+      const hasExpectedCount = Number.isFinite(config.expectedCount) && config.expectedCount >= 0;
+      const isCountMatched = !hasExpectedCount || finalUsers.length >= config.expectedCount;
+      const isPartial = wasManualStop || !isCountMatched;
+
       const finalResponse = await safeSendMessage({
         action: 'scanFinalize',
         scanId: config.scanId,
@@ -1266,22 +1270,31 @@
         expectedCount: config.expectedCount,
         expectedSource: config.expectedSource,
         profileCounts: config.profileCounts,
-        partial: wasManualStop
+        partial: isPartial
       });
 
       if (finalResponse?.status === 'error') {
         throw new Error(finalResponse.message || 'Failed to save scan data.');
       }
 
-      hud?.updateHud({
-        tone: 'success',
-        status: `Complete · ${finalUsers.length.toLocaleString()} accounts synced`,
-        progress: 100,
-        showActions: false
-      });
-      hud?.removeHud(2200);
+      if (!isPartial) {
+        hud?.updateHud({
+          tone: 'success',
+          status: `Complete · ${finalUsers.length.toLocaleString()} accounts synced`,
+          progress: 100,
+          showActions: false
+        });
+      } else {
+        hud?.updateHud({
+          tone: 'paused',
+          status: `Partial scan (${finalUsers.length.toLocaleString()}/${config.expectedCount || '?'}) · Baseline preserved`,
+          progress: hasExpectedCount ? Math.min(99, Math.round((finalUsers.length / config.expectedCount) * 100)) : 100,
+          showActions: false
+        });
+      }
+      hud?.removeHud(2600);
 
-      return { status: 'complete', count: finalUsers.length };
+      return { status: isPartial ? 'partial' : 'complete', count: finalUsers.length };
     } catch (error) {
       queueLog('error', 'scan.run_error', error?.message || 'Scan failed', {
         collected: collected.size,

@@ -81,14 +81,14 @@ test('buildMarkdownReport renders summary and unfollower table', () => {
   assert.match(md, /\| @bob \| Bob \| Yes \| suspended/);
 });
 
-test('evaluateScanQuality allows small fast scans and ghost-adjusted coverage', () => {
+test('evaluateScanQuality requires scan numbers to match initial expected count', () => {
   const small = evaluateScanQuality({ currentCount: 4, expectedCount: 4 });
   assert.equal(small.isValid, true);
   assert.equal(small.qualityStatus, 'verified_complete');
 
-  const ghost = evaluateScanQuality({ currentCount: 91, expectedCount: 100 });
-  assert.equal(ghost.isValid, true);
-  assert.equal(ghost.qualityStatus, 'ghost_adjusted');
+  const partialScan = evaluateScanQuality({ currentCount: 91, expectedCount: 100 });
+  assert.equal(partialScan.isValid, true);
+  assert.equal(partialScan.qualityStatus, 'partial');
 });
 
 test('computeScanDiff detects unfollows, refollows, handle renames, and upgrades handle->restId', () => {
@@ -206,8 +206,9 @@ test('computeScanDiff preserves baseline when additive partial scan stops early'
     scanId: 'partial-1'
   });
 
-  assert.equal(out.account.followerIds.length, 6);
+  assert.equal(out.account.followerIds.length, 5); // baseline preserved!
   assert.equal(Object.keys(out.account.activeUnfollowers).length, 0);
+  assert.equal(out.snapshot.isComplete, false);
 });
 
 test('evaluatePreSaveFilter respects whitelist override and exclusion rules', () => {
@@ -897,4 +898,66 @@ test('main-interceptor emitEnvelope safely supports direct object detail with JS
   // Verify that emitEnvelope uses structured clone try/catch pattern
   assert.ok(/new CustomEvent\('x-tracker:network',\s*\{[^}]*detail:\s*envelope/m.test(mainCode));
   assert.ok(/new CustomEvent\('x-tracker:network',\s*\{[^}]*detail:\s*JSON\.stringify\(envelope\)/m.test(mainCode));
+});
+
+test('scan is only deemed complete and worthy of updating current stats when initial count matches final count', () => {
+  const baseAccount = {
+    accountKey: 'test_user',
+    username: 'test_user',
+    followerIds: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'],
+    followingIds: [],
+    verifiedFollowerIds: [],
+    mutualFollowerIds: [],
+    whitelistIds: [],
+    lastFollowersCount: 10,
+    lastFollowersCheck: 1000,
+    activeUnfollowers: {},
+    activeNewFollowers: {},
+    refollowers: {}
+  };
+
+  // Case 1: Initial number is 10, but scan only yields 8 (e.g. stopped early or throttled)
+  // Must NOT update follower data or statistics, and must NOT emit false unfollows!
+  const partialScan = computeScanDiff({
+    account: baseAccount,
+    existingProfiles: {},
+    incomingUsers: [
+      { restId: '1', username: 'u1' },
+      { restId: '2', username: 'u2' },
+      { restId: '3', username: 'u3' },
+      { restId: '4', username: 'u4' },
+      { restId: '5', username: 'u5' },
+      { restId: '6', username: 'u6' },
+      { restId: '7', username: 'u7' },
+      { restId: '8', username: 'u8' }
+    ],
+    scanType: 'followers',
+    expectedCount: 10,
+    now: 2000,
+    scanId: 'scan_incomplete'
+  });
+
+  assert.equal(partialScan.snapshot.isComplete, false, 'must not be deemed complete');
+  assert.equal(partialScan.snapshot.status, 'partial', 'must be marked partial');
+  assert.equal(partialScan.account.followerIds.length, 10, 'must preserve previous baseline of 10');
+  assert.equal(partialScan.account.lastFollowersCount, 10, 'must not change follower count statistic');
+  assert.equal(partialScan.snapshot.delta.lost.length, 0, 'must not emit false unfollows');
+  assert.equal(Object.keys(partialScan.account.activeUnfollowers).length, 0, 'no false active unfollowers');
+
+  // Case 2: Scan yields 10 (matches initial number of 10)
+  // Now it IS complete and worthy of updating current stats!
+  const completeScan = computeScanDiff({
+    account: baseAccount,
+    existingProfiles: {},
+    incomingUsers: Array.from({ length: 10 }, (_, i) => ({ restId: String(i + 1), username: `u${i + 1}` })),
+    scanType: 'followers',
+    expectedCount: 10,
+    now: 3000,
+    scanId: 'scan_complete'
+  });
+
+  assert.equal(completeScan.snapshot.isComplete, true, 'must be deemed complete');
+  assert.equal(completeScan.snapshot.status, 'complete', 'status must be complete');
+  assert.equal(completeScan.account.followerIds.length, 10, 'baseline updated');
+  assert.equal(completeScan.account.lastFollowersCount, 10, 'statistic updated');
 });

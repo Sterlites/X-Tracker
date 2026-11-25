@@ -153,7 +153,7 @@ export function evaluateScanQuality({ currentCount, expectedCount, previousCount
       isValid: true,
       qualityStatus: 'partial',
       coverage,
-      reason: null
+      reason: 'Scan stopped before completion. Baseline preserved.'
     };
   }
 
@@ -166,7 +166,8 @@ export function evaluateScanQuality({ currentCount, expectedCount, previousCount
     };
   }
 
-  if (coverage >= 0.98) {
+  // Strict SOTA Rule: When initial number is known, scan must match initial number!
+  if (currentCount >= expectedCount) {
     return {
       isValid: true,
       qualityStatus: 'verified_complete',
@@ -175,20 +176,12 @@ export function evaluateScanQuality({ currentCount, expectedCount, previousCount
     };
   }
 
-  if (coverage >= 0.85 || (expectedCount <= 25 && expectedCount - currentCount <= 3)) {
-    return {
-      isValid: true,
-      qualityStatus: 'ghost_adjusted',
-      coverage,
-      reason: null
-    };
-  }
-
+  // Final scan numbers did not match initial expected count: strictly partial, must not update baseline stats
   return {
     isValid: true,
     qualityStatus: 'partial',
     coverage,
-    reason: null
+    reason: `Scan count (${currentCount}) did not match initial expected number (${expectedCount}). Data and statistics preserved.`
   };
 }
 
@@ -386,70 +379,58 @@ export function computeScanDiff({
     partial
   });
 
+  const hasExpected = Number.isFinite(expectedCount) && expectedCount >= 0;
+  // SOTA Completion Criteria: Only deemed complete and worthy of updating current stats
+  // when the initial number matches the final scan numbers (or when initial number was genuinely unknown).
+  const isCompleteAndWorthy =
+    hasExpected
+      ? currentIds.length >= expectedCount && !partial && quality.isValid
+      : !partial && quality.isValid;
+
   if (scanType === 'followers') {
     const hadBaseline = Boolean(account?.lastFollowersCheck) || prevFollowersIds.length > 0;
     const prevSet = new Set(prevFollowersIds);
 
-    // Safety guard: auto-demote to additive partial when coverage is catastrophically low
-    // to prevent a throttled/incomplete scan (e.g., 50/498 in a background tab) from wiping out
-    // the entire follower baseline and generating hundreds of false unfollowed events.
-    const hasExpected = Number.isFinite(expectedCount) && expectedCount >= 0;
-    const autoPartialDemoted =
-      !partial &&
-      hadBaseline &&
-      hasExpected &&
-      expectedCount >= 25 &&
-      quality.coverage !== null &&
-      quality.coverage < 0.50 &&
-      prevFollowersIds.length > currentIds.length;
-    if (autoPartialDemoted) {
-      partial = true;
-    }
+    if (isCompleteAndWorthy) {
+      if (hadBaseline) {
+        for (const id of currentIds) {
+          if (!prevSet.has(id)) {
+            const isRefollow =
+              activeUnfollowers.has(id) || priorLossIds.has(remapId(id));
+            const eventType = isRefollow ? 'refollowed' : 'followed';
+            delta.gained.push(id);
+            if (isRefollow) {
+              delta.refollowed.push(id);
+            }
 
-    // Note: Only emit losses if scan is NOT an explicit tiny partial/aborted capture (<80% when previous existed)
-    // unless caller specifically finalized as complete/ghost_adjusted.
-    const safeToDetectLosses = !partial || (quality.coverage !== null && quality.coverage >= 0.92);
-
-    if (hadBaseline) {
-      for (const id of currentIds) {
-        if (!prevSet.has(id)) {
-          const isRefollow =
-            activeUnfollowers.has(id) || priorLossIds.has(remapId(id));
-          const eventType = isRefollow ? 'refollowed' : 'followed';
-          delta.gained.push(id);
-          if (isRefollow) {
-            delta.refollowed.push(id);
-          }
-
-          activeUnfollowers.delete(id);
-          activeNewFollowers.set(id, {
-            id,
-            followedAt: now,
-            scanId,
-            refollowed: isRefollow
-          });
-          if (isRefollow) {
-            refollowers.set(id, {
+            activeUnfollowers.delete(id);
+            activeNewFollowers.set(id, {
               id,
-              refollowedAt: now,
-              scanId
+              followedAt: now,
+              scanId,
+              refollowed: isRefollow
+            });
+            if (isRefollow) {
+              refollowers.set(id, {
+                id,
+                refollowedAt: now,
+                scanId
+              });
+            }
+
+            newEvents.push({
+              eventId: `${account.accountKey}:${now}:${id}:${eventType}`,
+              accountKey: account.accountKey,
+              targetId: id,
+              type: eventType,
+              at: now,
+              scanId,
+              scanType,
+              source: scanSource
             });
           }
-
-          newEvents.push({
-            eventId: `${account.accountKey}:${now}:${id}:${eventType}`,
-            accountKey: account.accountKey,
-            targetId: id,
-            type: eventType,
-            at: now,
-            scanId,
-            scanType,
-            source: scanSource
-          });
         }
-      }
 
-      if (safeToDetectLosses) {
         for (const prevId of prevFollowersIds) {
           if (!currentSet.has(prevId)) {
             const wasPreviouslyLost = priorLossIds.has(prevId);
@@ -480,55 +461,47 @@ export function computeScanDiff({
           }
         }
       }
-    }
 
-    const isAdditivePartial = partial && !safeToDetectLosses && prevFollowersIds.length > 0;
-    nextAccount.followerIds = isAdditivePartial
-      ? Array.from(new Set([...prevFollowersIds, ...currentIds]))
-      : currentIds;
-    nextAccount.lastFollowersCheck = now;
-    nextAccount.lastFollowersCount = nextAccount.followerIds.length;
-    nextAccount.lastFollowersExpected = Number.isFinite(expectedCount) ? expectedCount : null;
-    nextAccount.lastFollowersCoverage = quality.coverage;
-    nextAccount.lastFollowersExpectedSource = expectedSource;
-    nextAccount.lastFollowersQuality = quality.qualityStatus;
+      nextAccount.followerIds = currentIds;
+      nextAccount.lastFollowersCheck = now;
+      nextAccount.lastFollowersCount = nextAccount.followerIds.length;
+      nextAccount.lastFollowersExpected = hasExpected ? expectedCount : null;
+      nextAccount.lastFollowersCoverage = quality.coverage;
+      nextAccount.lastFollowersExpectedSource = expectedSource;
+      nextAccount.lastFollowersQuality = quality.qualityStatus;
+    } else {
+      // Incomplete / partial / failed scan: MUST NOT update data or statistics!
+      nextAccount.followerIds = prevFollowersIds;
+      nextAccount.lastFollowersCount = Number.isFinite(account?.lastFollowersCount)
+        ? account.lastFollowersCount
+        : prevFollowersIds.length;
+      nextAccount.lastFollowersExpected = hasExpected ? expectedCount : null;
+      nextAccount.lastFollowersCoverage = quality.coverage;
+      nextAccount.lastFollowersExpectedSource = expectedSource;
+      nextAccount.lastFollowersQuality = quality.qualityStatus;
+      nextAccount.lastFollowersPartialAt = now;
+    }
   } else if (scanType === 'following') {
     const hadBaseline = Boolean(account?.lastFollowingCheck) || prevFollowingIds.length > 0;
     const prevSet = new Set(prevFollowingIds);
 
-    // Safety guard: auto-demote following scan to additive partial on catastrophically low coverage
-    const hasExpFollowing = Number.isFinite(expectedCount) && expectedCount >= 0;
-    const autoPartialDemotedFollowing =
-      !partial &&
-      hadBaseline &&
-      hasExpFollowing &&
-      expectedCount >= 25 &&
-      quality.coverage !== null &&
-      quality.coverage < 0.50 &&
-      prevFollowingIds.length > currentIds.length;
-    if (autoPartialDemotedFollowing) {
-      partial = true;
-    }
-
-    const safeToDetectLosses = !partial || (quality.coverage !== null && quality.coverage >= 0.92);
-
-    if (hadBaseline) {
-      for (const id of currentIds) {
-        if (!prevSet.has(id)) {
-          delta.followingAdded.push(id);
-          newEvents.push({
-            eventId: `${account.accountKey}:${now}:${id}:you_followed`,
-            accountKey: account.accountKey,
-            targetId: id,
-            type: 'you_followed',
-            at: now,
-            scanId,
-            scanType,
-            source: scanSource
-          });
+    if (isCompleteAndWorthy) {
+      if (hadBaseline) {
+        for (const id of currentIds) {
+          if (!prevSet.has(id)) {
+            delta.followingAdded.push(id);
+            newEvents.push({
+              eventId: `${account.accountKey}:${now}:${id}:you_followed`,
+              accountKey: account.accountKey,
+              targetId: id,
+              type: 'you_followed',
+              at: now,
+              scanId,
+              scanType,
+              source: scanSource
+            });
+          }
         }
-      }
-      if (safeToDetectLosses) {
         for (const prevId of prevFollowingIds) {
           if (!currentSet.has(prevId)) {
             delta.followingRemoved.push(prevId);
@@ -545,40 +518,65 @@ export function computeScanDiff({
           }
         }
       }
-    }
 
-    const isAdditivePartial = partial && !safeToDetectLosses && prevFollowingIds.length > 0;
-    nextAccount.followingIds = isAdditivePartial
-      ? Array.from(new Set([...prevFollowingIds, ...currentIds]))
-      : currentIds;
-    nextAccount.lastFollowingCheck = now;
-    nextAccount.lastFollowingCount = nextAccount.followingIds.length;
-    nextAccount.lastFollowingExpected = Number.isFinite(expectedCount) ? expectedCount : null;
-    nextAccount.lastFollowingCoverage = quality.coverage;
-    nextAccount.lastFollowingExpectedSource = expectedSource;
-    nextAccount.lastFollowingQuality = quality.qualityStatus;
+      nextAccount.followingIds = currentIds;
+      nextAccount.lastFollowingCheck = now;
+      nextAccount.lastFollowingCount = nextAccount.followingIds.length;
+      nextAccount.lastFollowingExpected = hasExpected ? expectedCount : null;
+      nextAccount.lastFollowingCoverage = quality.coverage;
+      nextAccount.lastFollowingExpectedSource = expectedSource;
+      nextAccount.lastFollowingQuality = quality.qualityStatus;
+    } else {
+      // Incomplete / partial / failed scan: MUST NOT update data or statistics!
+      nextAccount.followingIds = prevFollowingIds;
+      nextAccount.lastFollowingCount = Number.isFinite(account?.lastFollowingCount)
+        ? account.lastFollowingCount
+        : prevFollowingIds.length;
+      nextAccount.lastFollowingExpected = hasExpected ? expectedCount : null;
+      nextAccount.lastFollowingCoverage = quality.coverage;
+      nextAccount.lastFollowingExpectedSource = expectedSource;
+      nextAccount.lastFollowingQuality = quality.qualityStatus;
+      nextAccount.lastFollowingPartialAt = now;
+    }
   } else if (scanType === 'verified_followers') {
-    nextAccount.verifiedFollowerIds = currentIds;
-    nextAccount.lastVerifiedFollowersCheck = now;
+    if (isCompleteAndWorthy) {
+      nextAccount.verifiedFollowerIds = currentIds;
+      nextAccount.lastVerifiedFollowersCheck = now;
+    } else {
+      nextAccount.verifiedFollowerIds = account?.verifiedFollowerIds || [];
+    }
   } else if (scanType === 'followers_you_follow') {
-    nextAccount.mutualFollowerIds = currentIds;
-    nextAccount.lastMutualFollowersCheck = now;
+    if (isCompleteAndWorthy) {
+      nextAccount.mutualFollowerIds = currentIds;
+      nextAccount.lastMutualFollowersCheck = now;
+    } else {
+      nextAccount.mutualFollowerIds = account?.mutualFollowerIds || [];
+    }
   }
 
-  // Recompute derived relationships
-  const followerSet = new Set(nextAccount.followerIds);
-  const followingSet = new Set(nextAccount.followingIds);
+  // Recompute derived relationships only when scan was complete and worthy
+  if (isCompleteAndWorthy) {
+    const followerSet = new Set(nextAccount.followerIds);
+    const followingSet = new Set(nextAccount.followingIds);
 
-  const fansIds = nextAccount.followerIds.filter((id) => !followingSet.has(id));
-  const notFollowingBackIds = nextAccount.followingIds.filter((id) => !followerSet.has(id));
+    const fansIds = nextAccount.followerIds.filter((id) => !followingSet.has(id));
+    const notFollowingBackIds = nextAccount.followingIds.filter((id) => !followerSet.has(id));
 
-  nextAccount.fansIds = fansIds;
-  nextAccount.notFollowingBackIds = notFollowingBackIds;
-  nextAccount.activeUnfollowers = Object.fromEntries(activeUnfollowers.entries());
-  nextAccount.activeNewFollowers = Object.fromEntries(activeNewFollowers.entries());
-  nextAccount.refollowers = Object.fromEntries(refollowers.entries());
-  nextAccount.scanCount = (account?.scanCount || 0) + 1;
-  nextAccount.lastSuccessfulScan = now;
+    nextAccount.fansIds = fansIds;
+    nextAccount.notFollowingBackIds = notFollowingBackIds;
+    nextAccount.activeUnfollowers = Object.fromEntries(activeUnfollowers.entries());
+    nextAccount.activeNewFollowers = Object.fromEntries(activeNewFollowers.entries());
+    nextAccount.refollowers = Object.fromEntries(refollowers.entries());
+    nextAccount.scanCount = (account?.scanCount || 0) + 1;
+    nextAccount.lastSuccessfulScan = now;
+  } else {
+    nextAccount.fansIds = account?.fansIds || [];
+    nextAccount.notFollowingBackIds = account?.notFollowingBackIds || [];
+    nextAccount.activeUnfollowers = Object.fromEntries(priorActiveUnfollowerMap.entries());
+    nextAccount.activeNewFollowers = Object.fromEntries(priorActiveNewFollowerMap.entries());
+    nextAccount.refollowers = Object.fromEntries(priorRefollowerMap.entries());
+    nextAccount.scanCount = account?.scanCount || 0;
+  }
 
   const snapshot = {
     scanId,
@@ -587,10 +585,14 @@ export function computeScanDiff({
     source: scanSource,
     timestamp: now,
     count: currentIds.length,
-    expected: Number.isFinite(expectedCount) ? expectedCount : null,
+    expected: hasExpected ? expectedCount : null,
     expectedSource,
+    status: isCompleteAndWorthy ? 'complete' : quality.qualityStatus,
+    isComplete: isCompleteAndWorthy,
+    partial: !isCompleteAndWorthy,
+    qualityStatus: quality.qualityStatus,
     coverage: quality.coverage,
-    status: quality.qualityStatus,
+    reason: quality.reason,
     filteredTagCount,
     verified: currentIds.filter((id) => {
       const p = profilesById.get(id);
@@ -601,9 +603,10 @@ export function computeScanDiff({
     unfollowersCount: activeUnfollowers.size,
     newFollowersCount: activeNewFollowers.size,
     refollowersCount: refollowers.size,
-    fansCount: fansIds.length,
-    notFollowingBackCount: notFollowingBackIds.length,
-    delta
+    fansCount: nextAccount.fansIds.length,
+    notFollowingBackCount: nextAccount.notFollowingBackIds.length,
+    delta: isCompleteAndWorthy ? delta : { gained: [], lost: [], refollowed: [], relost: [], followingAdded: [], followingRemoved: [] },
+    filterStats: { filteredTagCount, preSaveFilters }
   };
 
   return {

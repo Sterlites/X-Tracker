@@ -824,7 +824,8 @@ async function handleScanFinalize(request) {
     });
 
     const now = Date.now();
-    if (active?.source === 'auto') {
+    const isComplete = Boolean(diffOut.snapshot.isComplete);
+    if (active?.source === 'auto' && isComplete) {
       const meta = (await chrome.storage.local.get([STORAGE_KEYS.autoScanMeta]))[STORAGE_KEYS.autoScanMeta] || {};
       await chrome.storage.local.set({
         [STORAGE_KEYS.autoScanMeta]: {
@@ -837,15 +838,20 @@ async function handleScanFinalize(request) {
     }
 
     await publishLiveState({
-      status: 'complete',
-      phase: 'complete',
-      progress: 100,
+      status: isComplete ? 'complete' : 'partial',
+      phase: isComplete ? 'complete' : 'partial',
+      progress: isComplete ? 100 : (diffOut.quality.coverage ? Math.min(99, Math.round(diffOut.quality.coverage * 100)) : 95),
       count: diffOut.snapshot.count,
       expected: diffOut.snapshot.expected,
-      lastQuality: diffOut.quality.qualityStatus
+      lastQuality: diffOut.quality.qualityStatus,
+      message: isComplete
+        ? `Scan complete: ${diffOut.snapshot.count.toLocaleString()} accounts synced.`
+        : `Partial scan: collected ${diffOut.snapshot.count.toLocaleString()} of ${diffOut.snapshot.expected?.toLocaleString() || '?'}. Baseline stats preserved.`
     });
 
-    await maybeNotifyScanResult(cleanUser, diffOut);
+    if (isComplete) {
+      await maybeNotifyScanResult(cleanUser, diffOut);
+    }
     swLog('info', 'scan.finalize', `Completed ${request.scanType} scan (${diffOut.snapshot.count} users)`, {
       scanType: request.scanType,
       count: diffOut.snapshot.count,
