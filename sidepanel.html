@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark light">
+  <title>X Tracker - Unfollow Monitor</title>
+  <link rel="stylesheet" href="sidepanel/styles/tokens.css">
+  <link rel="stylesheet" href="sidepanel/styles/base.css">
+  <link rel="stylesheet" href="sidepanel/styles/components.css">
+</head>
+<body>
+  <div class="panel-root">
+    <!-- Compact Sticky Command Header -->
+    <header class="app-header">
+      <div class="header-row">
+        <div class="brand">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <rect width="24" height="24" rx="6" fill="#1d4ed8"/>
+            <path d="M6.5 17.5L17.5 6.5" stroke="#f8fafc" stroke-width="2.4" stroke-linecap="round"/>
+            <path d="M6.5 6.5L10.2 10.2M13.8 13.8L17.5 17.5" stroke="#38bdf8" stroke-width="2.4" stroke-linecap="round"/>
+            <circle cx="17.8" cy="6.2" r="2.1" fill="#34d399"/>
+          </svg>
+          <h1 class="brand-title">X Tracker</h1>
+        </div>
+
+        <div class="header-actions">
+          <button type="button" class="icon-btn" id="passiveCaptureBtn" aria-pressed="false" aria-label="Toggle passive capture on active X tab" title="Toggle passive capture on active X tab">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <circle cx="12" cy="12" r="9"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+            <span>Capture</span>
+          </button>
+
+          <button type="button" class="icon-btn" id="exportMenuBtn" popovertarget="exportMenuPopover" aria-label="Export or backup data">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            <span>Export</span>
+          </button>
+
+          <button type="button" class="icon-btn" id="themeToggleBtn" aria-label="Cycle color theme">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <circle cx="12" cy="12" r="4"/>
+              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+            </svg>
+          </button>
+
+          <button type="button" class="icon-btn" id="openSettingsBtn" aria-label="Open settings">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="command-bar">
+        <button type="button" class="account-trigger" id="accountSwitcherBtn" popovertarget="accountMenuPopover" aria-label="Switch tracked account">
+          <span class="account-trigger-label" id="currentUserDisplay">Select X account</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+
+        <button type="button" class="icon-btn" id="openAddAccountBtn" aria-label="Add X account">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          <span>Add</span>
+        </button>
+      </div>
+
+      <div class="scan-cta-group">
+        <button type="button" class="btn-primary" id="scanFollowersBtn">Scan Followers</button>
+        <button type="button" class="btn-secondary" id="scanFollowingBtn">Scan Following</button>
+        <button type="button" class="btn-subtle" id="moreScansBtn" popovertarget="scanScopesPopover" aria-label="Additional scan scopes">Scopes ▾</button>
+      </div>
+
+      <div class="telemetry-strip">
+        <span id="lastCheckLabel" class="tabular">Never scanned</span>
+        <span class="status-indicator">
+          <span class="status-dot" id="scanStatusDot" data-state="idle" aria-hidden="true"></span>
+          <span id="scanStatusText">Ready</span>
+        </span>
+      </div>
+
+      <!-- Active Scan Telemetry Drawer (hidden unless scanning/paused/error) -->
+      <div class="live-scan-drawer" id="liveScanDrawer" hidden>
+        <progress class="scan-progress" id="scanProgressEl" value="0" max="100" aria-label="Scan progress"></progress>
+        <div class="live-scan-controls">
+          <button type="button" class="btn-subtle" id="pauseResumeScanBtn" style="flex:1">Pause</button>
+          <button type="button" class="btn-danger" id="stopScanBtn" style="flex:1">Stop &amp; Save</button>
+          <button type="button" class="btn-subtle" id="forceResetScanBtn" title="Reset stalled scan state">Reset</button>
+        </div>
+      </div>
+
+      <!-- Saved Checkpoint Banner (shown when an interrupted scan can be resumed) -->
+      <div class="checkpoint-banner" id="checkpointBanner" hidden>
+        <span id="checkpointLabel">Saved checkpoint ready to resume.</span>
+        <div class="header-actions">
+          <button type="button" class="btn-subtle" id="resumeCheckpointBtn" style="min-block-size:28px;padding:0.25rem 0.5rem;">Resume</button>
+          <button type="button" class="icon-btn" id="discardCheckpointBtn" aria-label="Discard checkpoint" style="min-block-size:28px;">×</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Single-Row Scrollable ARIA Tablist -->
+    <nav class="tabs-nav" aria-label="Dashboard views">
+      <div class="tablist" id="mainTablist" role="tablist" focusgroup="tablist nomemory" aria-label="Tracker views">
+        <button type="button" class="tab" role="tab" id="tab-overview" data-view="overview" aria-selected="true" focusgroupstart>Overview</button>
+        <button type="button" class="tab" role="tab" id="tab-followers" data-view="followers" aria-selected="false">Followers</button>
+        <button type="button" class="tab" role="tab" id="tab-unfollowers" data-view="unfollowers" aria-selected="false">Unfollowers</button>
+        <button type="button" class="tab" role="tab" id="tab-new" data-view="new" aria-selected="false">New</button>
+        <button type="button" class="tab" role="tab" id="tab-fans" data-view="fans" aria-selected="false">Fans</button>
+        <button type="button" class="tab" role="tab" id="tab-notfollowback" data-view="notfollowback" aria-selected="false">Not Back</button>
+        <button type="button" class="tab" role="tab" id="tab-following" data-view="following" aria-selected="false">Following</button>
+        <button type="button" class="tab" role="tab" id="tab-diagnostics" data-view="diagnostics" aria-selected="false">Captures &amp; Logs</button>
+      </div>
+    </nav>
+
+    <!-- Main Content Panels -->
+    <main class="main-content" id="mainContent">
+      <section id="panel-overview" class="tab-panel" role="tabpanel" aria-labelledby="tab-overview" tabindex="0">
+        <div class="kpi-grid">
+          <button type="button" class="kpi-card" data-jump-view="followers">
+            <span class="kpi-label">Followers</span>
+            <span class="kpi-value tabular" id="kpiFollowers">0</span>
+          </button>
+          <button type="button" class="kpi-card" data-jump-view="following">
+            <span class="kpi-label">Following</span>
+            <span class="kpi-value tabular" id="kpiFollowing">0</span>
+          </button>
+          <button type="button" class="kpi-card" data-tone="danger" data-jump-view="unfollowers">
+            <span class="kpi-label">Unfollowers</span>
+            <span class="kpi-value tabular" id="kpiUnfollowers">0</span>
+          </button>
+          <button type="button" class="kpi-card" data-tone="success" data-jump-view="new">
+            <span class="kpi-label">New</span>
+            <span class="kpi-value tabular" id="kpiNewFollowers">0</span>
+          </button>
+          <button type="button" class="kpi-card" data-tone="warn" data-jump-view="fans">
+            <span class="kpi-label">Fans</span>
+            <span class="kpi-value tabular" id="kpiFans">0</span>
+          </button>
+          <button type="button" class="kpi-card" data-tone="violet" data-jump-view="notfollowback">
+            <span class="kpi-label">Not Back</span>
+            <span class="kpi-value tabular" id="kpiNotFollowBack">0</span>
+          </button>
+        </div>
+
+        <div id="overviewAnalytics"></div>
+        <div id="overviewRecentEvents"></div>
+      </section>
+
+      <section id="panel-followers" class="tab-panel" role="tabpanel" aria-labelledby="tab-followers" hidden="until-found"></section>
+      <section id="panel-unfollowers" class="tab-panel" role="tabpanel" aria-labelledby="tab-unfollowers" hidden="until-found"></section>
+      <section id="panel-new" class="tab-panel" role="tabpanel" aria-labelledby="tab-new" hidden="until-found"></section>
+      <section id="panel-fans" class="tab-panel" role="tabpanel" aria-labelledby="tab-fans" hidden="until-found"></section>
+      <section id="panel-notfollowback" class="tab-panel" role="tabpanel" aria-labelledby="tab-notfollowback" hidden="until-found"></section>
+      <section id="panel-following" class="tab-panel" role="tabpanel" aria-labelledby="tab-following" hidden="until-found"></section>
+      <section id="panel-diagnostics" class="tab-panel" role="tabpanel" aria-labelledby="tab-diagnostics" hidden="until-found"></section>
+    </main>
+
+    <footer class="app-footer">
+      <span>100% Local IndexedDB · Session-only</span>
+      <span id="footerStorageStat" class="tabular"></span>
+    </footer>
+  </div>
+
+  <!-- Popover: Account Menu -->
+  <div id="accountMenuPopover" class="menu-popover" popover="auto" role="menu" aria-label="Tracked accounts">
+    <div id="accountMenuList"></div>
+    <div class="menu-divider"></div>
+    <button type="button" class="menu-item-btn" id="menuAddAccountBtn">+ Add X account</button>
+    <button type="button" class="menu-item-btn" id="menuDetectAccountBtn">Detect active X login</button>
+  </div>
+
+  <!-- Popover: Extra Scan Scopes -->
+  <div id="scanScopesPopover" class="menu-popover" popover="auto" role="menu" aria-label="Additional scan scopes">
+    <button type="button" class="menu-item-btn" data-scan-scope="verified_followers">Scan Verified Followers</button>
+    <button type="button" class="menu-item-btn" data-scan-scope="followers_you_follow">Scan Followers You Know</button>
+    <div class="menu-divider"></div>
+    <button type="button" class="menu-item-btn" id="scanSyncBothBtn">Sync Followers + Following</button>
+  </div>
+
+  <!-- Popover: Export & Backup -->
+  <div id="exportMenuPopover" class="menu-popover" popover="auto" role="menu" aria-label="Export options">
+    <button type="button" class="menu-item-btn" data-export-format="csv-current">Export current view (CSV)</button>
+    <button type="button" class="menu-item-btn" data-export-format="markdown">Audit summary (Markdown)</button>
+    <button type="button" class="menu-item-btn" data-export-format="json-account">Account backup (JSON)</button>
+    <button type="button" class="menu-item-btn" data-export-format="json-all">Full archive backup (JSON)</button>
+    <div class="menu-divider"></div>
+    <button type="button" class="menu-item-btn" id="openImportBtn">Import / Restore JSON…</button>
+  </div>
+
+  <!-- Dialog: Add Account -->
+  <dialog id="addAccountDialog" closedby="any" aria-labelledby="addAccountTitle">
+    <div class="dialog-header">
+      <h2 class="dialog-title" id="addAccountTitle">Add X Account</h2>
+      <button type="button" class="icon-btn" data-close-dialog="addAccountDialog" aria-label="Close dialog">×</button>
+    </div>
+    <form id="addAccountForm" method="dialog">
+      <div class="dialog-body">
+        <button type="button" class="btn-subtle" id="detectAccountInDialogBtn">Detect Active Logged-In X Account</button>
+        <div class="field">
+          <label class="field-label" for="addAccountInput">X username (without @)</label>
+          <input
+            type="text"
+            id="addAccountInput"
+            class="text-input"
+            placeholder="e.g. jack"
+            maxlength="16"
+            pattern="^@?[A-Za-z0-9_]{1,15}$"
+            autocomplete="username"
+            required
+          >
+          <span class="field-hint">1–15 letters, numbers, or underscores.</span>
+          <span class="field-error" id="addAccountError" hidden></span>
+        </div>
+      </div>
+      <div class="dialog-footer">
+        <button type="button" class="btn-subtle" value="cancel" data-close-dialog="addAccountDialog">Cancel</button>
+        <button type="submit" class="btn-primary" id="confirmAddAccountBtn" style="flex:0 0 auto;">Save Account</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Dialog: Settings & Pre-Save Filters -->
+  <dialog id="settingsDialog" closedby="any" aria-labelledby="settingsTitle">
+    <div class="dialog-header">
+      <h2 class="dialog-title" id="settingsTitle">Settings &amp; Filters</h2>
+      <button type="button" class="icon-btn" data-close-dialog="settingsDialog" aria-label="Close settings">×</button>
+    </div>
+    <form id="settingsForm" method="dialog">
+      <div class="dialog-body">
+        <div class="field">
+          <label class="field-label" for="settingTheme">Theme</label>
+          <select id="settingTheme" class="select-input">
+            <option value="system">System default</option>
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="settingScanTabMode">Scan tab placement</label>
+          <select id="settingScanTabMode" class="select-input">
+            <option value="dedicated">Dedicated scan tab (recommended, auto-closes)</option>
+            <option value="active">Current active tab</option>
+            <option value="background">Background tab (may throttle in Chrome)</option>
+          </select>
+        </div>
+
+        <label class="toggle-row">
+          <span class="toggle-label-wrap">
+            <span class="field-label">Auto-scan followers</span>
+            <span class="field-hint">Runs lightweight profile checks on schedule.</span>
+          </span>
+          <input type="checkbox" id="settingAutoScanEnabled" class="switch-input" switch>
+        </label>
+
+        <div class="field">
+          <label class="field-label" for="settingAutoScanInterval">Auto-scan interval</label>
+          <select id="settingAutoScanInterval" class="select-input">
+            <option value="60">Every 1 hour</option>
+            <option value="120">Every 2 hours</option>
+            <option value="240">Every 4 hours</option>
+            <option value="360">Every 6 hours</option>
+            <option value="720">Every 12 hours</option>
+          </select>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px;">
+            <span class="field-hint" id="settingsAutoScanMeta">Auto-scan idle</span>
+            <button type="button" class="btn-subtle" id="runAutoScanNowBtn" style="min-block-size:30px;padding:0.25rem 0.625rem;">Run check now</button>
+          </div>
+        </div>
+
+        <label class="toggle-row">
+          <span class="toggle-label-wrap">
+            <span class="field-label">Desktop notifications</span>
+            <span class="field-hint">Alert when scans find unfollowers or renames.</span>
+          </span>
+          <input type="checkbox" id="settingNotifications" class="switch-input" switch>
+        </label>
+
+        <label class="toggle-row">
+          <span class="toggle-label-wrap">
+            <span class="field-label">In-page X profile badge</span>
+            <span class="field-hint">Show follower relationship pill when visiting profiles.</span>
+          </span>
+          <input type="checkbox" id="settingInPageBadge" class="switch-input" switch>
+        </label>
+
+        <div class="menu-divider"></div>
+
+        <div class="field">
+          <label class="field-label" for="filterVerifiedMode">Pre-save / capture filter: verification</label>
+          <select id="filterVerifiedMode" class="select-input">
+            <option value="all">Include all accounts</option>
+            <option value="verified_only">Verified only</option>
+            <option value="blue_only">Blue verified only</option>
+            <option value="non_verified">Non-verified only</option>
+          </select>
+        </div>
+
+        <label class="toggle-row">
+          <span class="toggle-label-wrap">
+            <span class="field-label">Flag default-avatar accounts</span>
+            <span class="field-hint">Exclude default avatars from passive captures &amp; flag in scans.</span>
+          </span>
+          <input type="checkbox" id="filterExcludeDefaultAvatar" class="switch-input" switch>
+        </label>
+
+        <div class="field">
+          <label class="field-label" for="filterMinFollowers">Minimum follower count (for captures)</label>
+          <input type="number" id="filterMinFollowers" class="text-input" min="0" step="10" value="0">
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="filterBioKeywords">Exclude bio keywords (comma-separated)</label>
+          <input type="text" id="filterBioKeywords" class="text-input" placeholder="e.g. crypto giveaway, promo">
+        </div>
+      </div>
+      <div class="dialog-footer">
+        <button type="button" class="btn-subtle" data-close-dialog="settingsDialog">Close</button>
+        <button type="submit" class="btn-primary" style="flex:0 0 auto;">Save Settings</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Dialog: Destructive Confirmation -->
+  <dialog id="confirmDialog" closedby="any" aria-labelledby="confirmTitle">
+    <div class="dialog-header">
+      <h2 class="dialog-title" id="confirmTitle">Confirm Action</h2>
+      <button type="button" class="icon-btn" data-close-dialog="confirmDialog" aria-label="Close">×</button>
+    </div>
+    <form method="dialog">
+      <div class="dialog-body">
+        <p id="confirmMessage"></p>
+      </div>
+      <div class="dialog-footer">
+        <button type="submit" value="cancel" class="btn-subtle" autofocus>Cancel</button>
+        <button type="submit" value="confirm" class="btn-danger" id="confirmOkBtn">Confirm</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Hidden file input for JSON import -->
+  <input type="file" id="importJsonInput" accept="application/json,.json" hidden>
+
+  <!-- Template for User Cards (zero innerHTML interpolation) -->
+  <template id="userCardTemplate">
+    <article class="user-card">
+      <div class="user-card-main">
+        <div class="avatar-wrap">
+          <span class="avatar-fallback" aria-hidden="true"></span>
+        </div>
+        <div class="user-meta">
+          <div class="user-name-row">
+            <span class="user-display-name"></span>
+            <span class="pill" data-tone="info" data-slot="verified" hidden>Verified</span>
+            <span class="pill" data-tone="violet" data-slot="mutual" hidden>Mutual</span>
+            <span class="pill" data-tone="good" data-slot="whitelist" hidden>Kept</span>
+            <span class="pill" data-tone="watch" data-slot="flag" hidden></span>
+          </div>
+          <div class="user-handle"></div>
+          <p class="user-bio" hidden></p>
+          <div class="user-timeline" hidden></div>
+        </div>
+      </div>
+      <div class="user-card-aside">
+        <span class="pill" data-slot="status" hidden></span>
+        <span class="user-time tabular" data-slot="time" hidden></span>
+        <div class="user-card-actions">
+          <button type="button" class="icon-btn" data-action="whitelist" title="Keep / Whitelist">Keep</button>
+          <button type="button" class="icon-btn" data-action="open" aria-label="Open profile on X">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+              <polyline points="15 3 21 3 21 9"/>
+              <line x1="10" y1="14" x2="21" y2="3"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </article>
+  </template>
+
+  <!-- Screen Reader Live Region + Manual Popover Toast Region -->
+  <p class="visually-hidden" id="ariaStatusLabel">Status announcements</p>
+  <div id="ariaLiveRegion" class="visually-hidden" aria-live="polite" aria-atomic="true"></div>
+  <div id="toastStack" class="toast-stack" popover="manual" role="region" aria-label="Notifications"></div>
+
+  <script type="module" src="sidepanel/app.js"></script>
+</body>
+</html>

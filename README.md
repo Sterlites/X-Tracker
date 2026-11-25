@@ -330,21 +330,36 @@
 ## 📦 File Structure
 
 ```
-X-Tracker/
-├── manifest.json          # Extension configuration and metadata
-├── background.js          # Background service for scanning operations
-├── popup.html             # User interface for the extension side panel
-├── popup.js               # Frontend logic and UI interactions
-├── scraper.js             # Core scraping functionality
-├── README.md              # This documentation file
+X-Unfollow/
+├── manifest.json                 # Extension manifest (MV3 v3.0.0)
+├── background.js                 # ES module service worker (alarms, locks, tabs, notifications)
+├── sidepanel.html                # Side panel UI shell
+├── shared/
+│   ├── constants.js              # Scopes, alarm names, defaults, reserved X paths
+│   ├── utils.js                  # Localized count parser, URL sanitization, CSV & Markdown builders
+│   ├── diff.js                   # Pure identity reconciliation, handle-rename detection, diff engine
+│   └── db.js                     # Normalized IndexedDB (XTrackerDB) + v2 migration & backup
+├── content/
+│   ├── main-interceptor.js       # MAIN-world passive GraphQL/fetch/XHR observer
+│   ├── graphql-parser.js         # Multi-schema GraphQL/REST payload parser
+│   ├── hud.js                    # Encapsulated Shadow DOM in-page HUD & profile pill
+│   └── scraper.js                # Virtual-scroll DOM fallback, checkpointing, passive capture
+├── sidepanel/
+│   ├── app.js                    # Reactive UI controller, chunked rendering, keyboard tabs
+│   ├── charts.js                 # Accessible SVG trend & activity charts
+│   ├── dialogs.js                # Native <dialog> modals (Add Account, Settings, Confirm)
+│   ├── exports.js                # CSV, Markdown, JSON archive export & import
+│   └── styles/
+│       ├── tokens.css            # WCAG AA dark/light design tokens
+│       ├── base.css              # Element-scoped reset & browser surface theming
+│       └── components.css        # Responsive @container layout, tabs, popovers, cards
+├── tests/
+│   └── core.test.mjs             # Node built-in unit & manifest integrity tests
 ├── icons/
-│   ├── icon16.png         # Small icon for browser extensions
-│   ├── icon48.png         # Medium icon for browser extensions
-│   └── icon128.png        # Large icon for browser extensions
-├── screenshots/
-│   ├── dashboard.png      # Dashboard view screenshot
-│   ├── unfollowers.png    # Unfollowers view screenshot
-│   └── multi_account.png  # Multi-account support screenshot
+│   ├── icon16.png                # 16×16 toolbar icon
+│   ├── icon48.png                # 48×48 extensions page icon
+│   └── icon128.png               # 128×128 store/notification icon
+└── screenshots/
 ```
 
 ---
