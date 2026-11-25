@@ -570,13 +570,38 @@ export async function commitScanResult({
   // Read account, existing profiles referenced or handle-matched, and historical loss IDs
   const readTx = db.transaction(['accounts', 'profiles', 'events'], 'readonly');
   const account = (await reqPromise(readTx.objectStore('accounts').get(key))) || createEmptyAccountRecord(key);
-  const allProfiles = await reqPromise(readTx.objectStore('profiles').getAll());
+  const readProfileStore = readTx.objectStore('profiles');
+  const profileCount = await reqPromise(readProfileStore.count());
+
+  let existingProfiles = {};
+  if (profileCount <= 3000) {
+    const allProfiles = await reqPromise(readProfileStore.getAll());
+    existingProfiles = Object.fromEntries((allProfiles || []).map((p) => [p.id, p]));
+  } else {
+    // Large DB: selectively load account-relevant profiles to avoid pulling massive tables into RAM
+    const relevantIds = new Set([
+      ...(account.followerIds || []),
+      ...(account.followingIds || []),
+      ...(account.verifiedFollowerIds || []),
+      ...(account.mutualFollowerIds || []),
+      ...Object.keys(account.activeUnfollowers || {}),
+      ...Object.keys(account.activeNewFollowers || {}),
+      ...Object.keys(account.refollowers || {})
+    ]);
+    for (const u of (users || []).slice(0, 500)) {
+      if (u.restId) relevantIds.add(String(u.restId).trim());
+      if (u.username) relevantIds.add(`handle:${normalizeHandle(u.username)}`);
+    }
+    const promises = Array.from(relevantIds).map((id) => reqPromise(readProfileStore.get(id)));
+    const loaded = await Promise.all(promises);
+    existingProfiles = Object.fromEntries(loaded.filter(Boolean).map((p) => [p.id, p]));
+  }
+
   const lossEvents = await reqPromise(
     readTx.objectStore('events').index('byAccountAt').getAll(IDBKeyRange.bound([key, 0], [key, Number.MAX_SAFE_INTEGER]))
   );
   await txPromise(readTx);
 
-  const existingProfiles = Object.fromEntries((allProfiles || []).map((p) => [p.id, p]));
   const priorLossIds = new Set(
     (lossEvents || [])
       .filter((e) => e.type === 'unfollowed' || e.type === 'reunfollowed')
@@ -1027,19 +1052,30 @@ export async function appendAppLogs(entries = []) {
     const db = await openDB();
     const tx = db.transaction('logs', 'readwrite');
     const store = tx.objectStore('logs');
-    const existing = (await reqPromise(store.index('byAt').getAll())) || [];
 
     for (const item of normalized) {
       store.put(item);
     }
 
-    const total = existing.length + normalized.length;
-    if (total > MAX_APP_LOGS) {
-      const sortedOld = existing.sort((a, b) => (a.at || 0) - (b.at || 0));
-      const dropCount = total - MAX_APP_LOGS;
-      for (let i = 0; i < Math.min(dropCount, sortedOld.length); i++) {
-        store.delete(sortedOld[i].id);
-      }
+    const currentCount = await reqPromise(store.count());
+    if (currentCount > MAX_APP_LOGS) {
+      let dropCount = currentCount - MAX_APP_LOGS;
+      const index = store.index('byAt');
+      // Cursor in ascending order prunes oldest entries with zero in-memory getAll()
+      await new Promise((resolve) => {
+        const cursorReq = index.openCursor();
+        cursorReq.onsuccess = (e) => {
+          const cursor = e.target.result;
+          if (cursor && dropCount > 0) {
+            cursor.delete();
+            dropCount--;
+            cursor.continue();
+          } else {
+            resolve();
+          }
+        };
+        cursorReq.onerror = () => resolve();
+      });
     }
 
     await txPromise(tx);

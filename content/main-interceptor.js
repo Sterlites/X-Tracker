@@ -157,11 +157,19 @@
       if (recentPayloads.length > MAX_BUFFER) {
         recentPayloads.shift();
       }
-      document.dispatchEvent(
-        new CustomEvent('x-tracker:network', {
-          detail: JSON.stringify(envelope)
-        })
-      );
+      try {
+        document.dispatchEvent(
+          new CustomEvent('x-tracker:network', {
+            detail: envelope
+          })
+        );
+      } catch {
+        document.dispatchEvent(
+          new CustomEvent('x-tracker:network', {
+            detail: JSON.stringify(envelope)
+          })
+        );
+      }
     } catch {
       // Never interfere with host page execution
     }
@@ -182,11 +190,19 @@
   document.addEventListener('x-tracker:handshake', () => {
     for (const envelope of recentPayloads) {
       try {
-        document.dispatchEvent(
-          new CustomEvent('x-tracker:network', {
-            detail: JSON.stringify(envelope)
-          })
-        );
+        try {
+          document.dispatchEvent(
+            new CustomEvent('x-tracker:network', {
+              detail: envelope
+            })
+          );
+        } catch {
+          document.dispatchEvent(
+            new CustomEvent('x-tracker:network', {
+              detail: JSON.stringify(envelope)
+            })
+          );
+        }
       } catch {
         // Ignore
       }

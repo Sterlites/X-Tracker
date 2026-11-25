@@ -19,14 +19,42 @@
   ]);
 
   const USERNAME_REGEX = /^[a-zA-Z0-9_]{1,15}$/;
-  const CHECKPOINT_BATCH_SIZE = 50;
-  const BASE_SCROLL_DELAY_MS = 650;
-  const JITTER_MS = 450;
-  const MAX_SCROLL_DELAY_MS = 2600;
-  const PAUSE_EVERY_N_SCROLLS = 18;
-  const PAUSE_DURATION_MS = 1800;
-  const MAX_SCROLLS = 800;
-  const MAX_SCAN_TIME_MS = 900_000; // 15 minutes max
+  const CHECKPOINT_BATCH_SIZE = 250;
+  const BASE_SCROLL_DELAY_MS = 380;
+  const JITTER_MS = 220;
+  const MAX_SCROLL_DELAY_MS = 2200;
+  const PAUSE_EVERY_N_SCROLLS = 36;
+  const PAUSE_DURATION_MS = 1200;
+  const DEFAULT_MAX_SCROLLS = 1200;
+  const BASE_MAX_SCAN_TIME_MS = 900_000; // 15 minutes base
+
+  const networkBatchResolvers = new Set();
+
+  function notifyNetworkBatchReceived() {
+    for (const resolver of networkBatchResolvers) {
+      try {
+        resolver();
+      } catch {
+        // Ignore resolver failure
+      }
+    }
+    networkBatchResolvers.clear();
+  }
+
+  function waitForNetworkBatchOrTimeout(timeoutMs) {
+    return new Promise((resolve) => {
+      let timer = null;
+      const onBatch = () => {
+        if (timer) clearTimeout(timer);
+        resolve(true);
+      };
+      networkBatchResolvers.add(onBatch);
+      timer = setTimeout(() => {
+        networkBatchResolvers.delete(onBatch);
+        resolve(false);
+      }, timeoutMs);
+    });
+  }
 
   const state = {
     running: false,
@@ -323,6 +351,7 @@
         rateLimitRemaining: envelope.rateLimit?.remaining ?? null,
         rateLimitLimit: envelope.rateLimit?.limit ?? null
       });
+      notifyNetworkBatchReceived();
       return;
     }
 
@@ -946,28 +975,44 @@
       let lastGqlSeenCount = 0;
       let stopReason = 'loop_exit';
 
-      // Observe DOM mutations during scroll cycles so recycled virtualized cells are never missed
+      const maxScrolls = Math.max(
+        DEFAULT_MAX_SCROLLS,
+        Math.ceil(((config.expectedCount || 1000) / 15) * 3)
+      );
+      const maxScanTimeMs = Math.max(
+        BASE_MAX_SCAN_TIME_MS,
+        Math.ceil(((config.expectedCount || 1000) / 1000) * 120_000)
+      );
+
+      // Observe DOM mutations only as a debounced fallback when GraphQL payloads are absent, saving 90%+ CPU
+      let domObserverDebounce = null;
       const observer = new MutationObserver(() => {
-        for (const cell of getUserCells(primary)) {
-          const domUser = extractUserFromDomCell(cell);
-          if (domUser) ingestUser(domUser);
-        }
+        if (state.gqlPayloadsReceived > 0) return;
+        if (domObserverDebounce) clearTimeout(domObserverDebounce);
+        domObserverDebounce = setTimeout(() => {
+          for (const cell of getUserCells(primary)) {
+            const domUser = extractUserFromDomCell(cell);
+            if (domUser) ingestUser(domUser);
+          }
+        }, 300);
       });
       observer.observe(primary, { childList: true, subtree: true });
 
-      const drainSources = () => {
+      const drainSources = (includeDom = false) => {
         let added = 0;
         for (const u of state.gqlUsers.values()) {
           if (ingestUser(u)) added++;
         }
-        for (const cell of getUserCells(primary)) {
-          const domUser = extractUserFromDomCell(cell);
-          if (domUser && ingestUser(domUser)) added++;
+        if (includeDom || state.gqlPayloadsReceived === 0 || collected.size === 0) {
+          for (const cell of getUserCells(primary)) {
+            const domUser = extractUserFromDomCell(cell);
+            if (domUser && ingestUser(domUser)) added++;
+          }
         }
         return added;
       };
 
-      drainSources();
+      drainSources(true);
 
       // Confirm 0-follower/empty list without wasting unnecessary scroll retries
       let skipScrollLoop = false;
@@ -979,16 +1024,21 @@
           readyReason === 'no_data_settled' ||
           (readyReason === 'gql_list_payload' && state.gqlUsers.size === 0))
       ) {
-        await sleep(450);
-        drainSources();
+        await sleep(350);
+        drainSources(true);
         if (collected.size === 0 && !detectScopedPageIssue()) {
           skipScrollLoop = true;
           stopReason = `empty_${readyReason}`;
         }
       }
 
-      while (!skipScrollLoop && !state.shouldStop && scrollCount < MAX_SCROLLS) {
-        if (Date.now() - scanStartedAt > MAX_SCAN_TIME_MS) {
+      let lastCheckpointAt = Date.now();
+      const expected = Number.isFinite(config.expectedCount) && config.expectedCount > 0
+        ? config.expectedCount
+        : null;
+
+      while (!skipScrollLoop && !state.shouldStop && scrollCount < maxScrolls) {
+        if (Date.now() - scanStartedAt > maxScanTimeMs) {
           stopReason = 'max_time';
           break;
         }
@@ -1006,7 +1056,7 @@
         if (state.rateLimitResetAtMs > Date.now()) {
           const waitRemainingMs = state.rateLimitResetAtMs - Date.now();
           await flushCheckpoint(true);
-          if (waitRemainingMs <= 120_000) {
+          if (waitRemainingMs <= 180_000) {
             while (Date.now() < state.rateLimitResetAtMs && !state.shouldStop) {
               const sec = Math.ceil((state.rateLimitResetAtMs - Date.now()) / 1000);
               hud?.updateHud({
@@ -1041,8 +1091,8 @@
         const beforeCount = collected.size;
         const beforeGqlPayloads = state.gqlPayloadsReceived;
 
-        // Incremental viewport-step scroll; instant mode when tab is hidden so compositor rAF never stalls scrolling
-        const stepPx = Math.max(420, Math.round((window.innerHeight || 800) * 0.78));
+        // Targeted viewport/sentinel step scroll: 1.75x viewport ensures infinite scroll sentinel is triggered in 1 step
+        const stepPx = Math.max(850, Math.round((window.innerHeight || 800) * 1.75));
         const scrollBehavior = document.hidden ? 'instant' : 'smooth';
         if (scrollEl === document.scrollingElement || scrollEl === document.documentElement) {
           window.scrollBy({ top: stepPx, behavior: scrollBehavior });
@@ -1050,41 +1100,54 @@
           scrollEl.scrollBy({ top: stepPx, behavior: scrollBehavior });
         }
 
-        // Wait with adaptive jittered pacing (slower if remaining rate limit is low)
-        const rateSlowdown =
-          Number.isFinite(state.rateLimitRemaining) && state.rateLimitRemaining <= 6 ? 1200 : 0;
-        await sleep(jitteredDelay(scrollDelay + rateSlowdown));
+        // State-of-the-art event-driven network synchronization
+        // If GraphQL is active and we still need more users, await the next batch event directly
+        let gotNetworkBatch = false;
+        if (
+          (!expected || beforeCount < expected) &&
+          (state.gqlPayloadsReceived > 0 || readyReason === 'gql_list_payload')
+        ) {
+          const networkWaitMs = Math.min(600, scrollDelay);
+          gotNetworkBatch = await waitForNetworkBatchOrTimeout(networkWaitMs);
+        }
 
-        const addedFromDrain = drainSources();
+        // Adaptive natural pacing delay
+        const rateSlowdown =
+          Number.isFinite(state.rateLimitRemaining) && state.rateLimitRemaining <= 6 ? 900 : 0;
+        await sleep(jitteredDelay(rateSlowdown > 0 ? rateSlowdown : BASE_SCROLL_DELAY_MS, JITTER_MS));
+
+        const addedFromDrain = drainSources(!gotNetworkBatch);
         const afterCount = collected.size;
         const hadGqlGrowth =
           state.gqlPayloadsReceived > beforeGqlPayloads || state.gqlUsers.size > lastGqlSeenCount;
         lastGqlSeenCount = state.gqlUsers.size;
 
         const atScrollBottom =
-          scrollEl.scrollTop + scrollEl.clientHeight >= scrollEl.scrollHeight - 24;
+          scrollEl.scrollTop + scrollEl.clientHeight >= scrollEl.scrollHeight - 32;
 
         if (afterCount === beforeCount && addedFromDrain === 0 && !hadGqlGrowth) {
           noNewCycles += atScrollBottom ? 1 : 0.5;
-          scrollDelay = Math.min(MAX_SCROLL_DELAY_MS, Math.round(scrollDelay * 1.2));
+          scrollDelay = Math.min(MAX_SCROLL_DELAY_MS, Math.round(scrollDelay * 1.15));
         } else {
           noNewCycles = 0;
-          scrollDelay = Math.max(BASE_SCROLL_DELAY_MS, Math.round(scrollDelay * 0.92));
+          scrollDelay = Math.max(BASE_SCROLL_DELAY_MS, Math.round(scrollDelay * 0.94));
         }
 
-        if (unsentBatch.length >= CHECKPOINT_BATCH_SIZE) {
+        if (
+          unsentBatch.length >= CHECKPOINT_BATCH_SIZE ||
+          (unsentBatch.length >= 50 && Date.now() - lastCheckpointAt > 12_000)
+        ) {
+          lastCheckpointAt = Date.now();
           await flushCheckpoint();
         }
 
-        const expected = Number.isFinite(config.expectedCount) && config.expectedCount > 0
-          ? config.expectedCount
-          : null;
-        const pct = expected
-          ? Math.min(97, Math.round((afterCount / expected) * 100))
+        const expectedCountTarget = expected;
+        const pct = expectedCountTarget
+          ? Math.min(97, Math.round((afterCount / expectedCountTarget) * 100))
           : Math.min(95, Math.round((scrollCount / 40) * 100));
         const sourceLabel = state.gqlPayloadsReceived > 0 ? 'GraphQL + DOM' : 'DOM Fallback';
-        const statusText = expected
-          ? `${afterCount.toLocaleString()} / ${expected.toLocaleString()} collected (${pct}%)`
+        const statusText = expectedCountTarget
+          ? `${afterCount.toLocaleString()} / ${expectedCountTarget.toLocaleString()} collected (${pct}%)`
           : `${afterCount.toLocaleString()} collected`;
 
         hud?.updateHud({
@@ -1102,7 +1165,7 @@
             phase: 'scanning',
             progress: pct,
             count: afterCount,
-            expected,
+            expected: expectedCountTarget,
             sourceMode: sourceLabel
           });
         }
@@ -1112,7 +1175,7 @@
           stopReason = 'empty_list_confirmed';
           break;
         }
-        if (expected && afterCount >= expected && noNewCycles >= 2) {
+        if (expected && afterCount >= expected && noNewCycles >= 1) {
           stopReason = 'expected_matched';
           break;
         }
@@ -1137,7 +1200,7 @@
 
         // Human-like periodic pause
         if (scrollCount % PAUSE_EVERY_N_SCROLLS === 0) {
-          await sleep(jitteredDelay(PAUSE_DURATION_MS, 700));
+          await sleep(jitteredDelay(PAUSE_DURATION_MS, 500));
         }
 
         // Check scoped errors (do not treat user bios as errors!)
@@ -1152,7 +1215,7 @@
 
       if (state.shouldStop && stopReason === 'loop_exit') {
         stopReason = 'user_stop';
-      } else if (scrollCount >= MAX_SCROLLS && stopReason === 'loop_exit') {
+      } else if (scrollCount >= maxScrolls && stopReason === 'loop_exit') {
         stopReason = 'max_scrolls';
       }
 

@@ -21,7 +21,9 @@ import {
 import {
   createEmptyAccountRecord,
   getSettings,
-  saveSettings
+  saveSettings,
+  appendAppLogs,
+  listAppLogs
 } from '../shared/db.js';
 
 const require = createRequire(import.meta.url);
@@ -865,4 +867,34 @@ test('graphql-parser reads relationship_counts fallback and scraper ignores HTTP
   assert.equal(errMsg, undefined, `unexpected scanError: ${errMsg?.error}`);
   assert.ok(finMsg, 'expected scanFinalize to run');
   assert.equal(finMsg.users.length, 1);
+});
+
+test('dynamic scroll caps and scan timeout scale cleanly for large 15,000+ follower accounts', () => {
+  const calcScrollCap = (expectedCount) => Math.max(1200, Math.ceil(((expectedCount || 1000) / 15) * 3));
+  const calcScanTimeoutMs = (expectedCount) => Math.max(900_000, Math.ceil(((expectedCount || 1000) / 1000) * 120_000));
+
+  // Small accounts default to safe high minimums
+  assert.equal(calcScrollCap(100), 1200);
+  assert.equal(calcScanTimeoutMs(100), 900_000);
+
+  // 5,000 follower account
+  assert.equal(calcScrollCap(5000), 1200);
+  assert.equal(calcScanTimeoutMs(5000), 900_000);
+
+  // 15,000 follower account scales to 3,000 scrolls and 30 minutes
+  assert.equal(calcScrollCap(15000), 3000);
+  assert.equal(calcScanTimeoutMs(15000), 1_800_000);
+
+  // 25,000 follower account scales to 5,000 scrolls and 50 minutes
+  assert.equal(calcScrollCap(25000), 5000);
+  assert.equal(calcScanTimeoutMs(25000), 3_000_000);
+});
+
+test('main-interceptor emitEnvelope safely supports direct object detail with JSON fallback', () => {
+  const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const mainCode = fs.readFileSync(path.join(rootDir, 'content/main-interceptor.js'), 'utf8');
+
+  // Verify that emitEnvelope uses structured clone try/catch pattern
+  assert.ok(/new CustomEvent\('x-tracker:network',\s*\{[^}]*detail:\s*envelope/m.test(mainCode));
+  assert.ok(/new CustomEvent\('x-tracker:network',\s*\{[^}]*detail:\s*JSON\.stringify\(envelope\)/m.test(mainCode));
 });
